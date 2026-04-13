@@ -19,7 +19,7 @@ export default function Home() {
               </span>
             </h1>
             <p className="mx-auto mb-10 max-w-2xl text-xl text-gray-600 dark:text-gray-300">
-              连接您的GitHub账户，自动获取本周commit记录，使用Claude AI生成专业周报，一键分享给团队同事。
+              连接您的GitHub账户，自动获取本周commit记录，使用DeepSeek AI生成专业周报，一键分享给团队同事。
             </p>
             <div className="flex flex-col justify-center gap-4 sm:flex-row">
               <Link
@@ -87,7 +87,7 @@ export default function Home() {
                 AI智能分析
               </h3>
               <p className="mb-6 text-gray-600 dark:text-gray-300">
-                基于Claude AI的强大分析能力，自动生成结构化周报，支持多种风格和详细程度。
+                基于DeepSeek AI的强大分析能力，自动生成结构化周报，支持多种风格和详细程度。
               </p>
               <ul className="space-y-3">
                 <li className="flex items-center gap-2">

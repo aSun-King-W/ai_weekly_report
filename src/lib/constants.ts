@@ -8,7 +8,7 @@ export const GITHUB_TOKEN_URL = 'https://github.com/login/oauth/access_token';
 // 缓存时间配置（秒）
 export const CACHE_TTL = {
   GITHUB: 300,      // 5分钟
-  CLAUDE: 3600,     // 1小时
+  AI: 3600,         // AI API响应缓存，1小时
   USER: 1800,       // 30分钟
 };
 

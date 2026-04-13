@@ -21,6 +21,13 @@ export interface ReportOptions {
   includeMetrics: boolean;
 }
 
+// Token使用统计类型
+export interface TokenUsage {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+}
+
 // 报告结果类型
 export interface ReportResult {
   report: string;
@@ -29,6 +36,8 @@ export interface ReportResult {
     generationTime: number;
     style: string;
     length: string;
+    tokenUsage?: TokenUsage;
+    isFallback?: boolean;
   };
 }
 

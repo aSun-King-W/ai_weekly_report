@@ -1,7 +1,7 @@
 # AI周报助手 - 项目规格说明书
 
 ## 项目概述
-AI周报助手是一个连接GitHub的个人开发工具，自动获取本周commit记录，使用Claude AI生成可读的周报页面，并支持一键分享给同事。
+AI周报助手是一个连接GitHub的个人开发工具，自动获取本周commit记录，使用DeepSeek AI生成可读的周报页面，并支持一键分享给同事。
 
 ## 目标用户
 - **主要用户**：个人开发者
@@ -17,7 +17,7 @@ AI周报助手是一个连接GitHub的个人开发工具，自动获取本周com
    - 提取本周commit记录
 
 2. **AI周报生成**
-   - 使用Claude API分析commit数据
+   - 使用DeepSeek API分析commit数据
    - 生成结构化周报（分类总结、成就、挑战等）
    - 支持多种报告风格和长度
 
@@ -117,7 +117,7 @@ AI周报助手是一个连接GitHub的个人开发工具，自动获取本周com
 | 前端框架 | Next.js 15 (App Router) | 全栈能力、优秀性能、TypeScript原生支持 |
 | 样式方案 | Tailwind CSS | 快速开发、响应式设计、维护简单 |
 | 认证方案 | NextAuth.js | 标准OAuth集成、安全可靠 |
-| AI服务 | Claude API (Anthropic SDK) | 优秀的文本生成能力、API稳定性 |
+| AI服务 | DeepSeek API (OpenAI兼容格式) | 优秀的文本生成能力、API稳定性、成本效益 |
 | 开发语言 | TypeScript | 类型安全、更好的开发体验 |
 | 部署平台 | Vercel | Next.js优化、简单部署、全球CDN |
 | PDF生成 | @react-pdf/renderer | React友好、客户端生成 |
@@ -136,7 +136,7 @@ AI周报助手是一个连接GitHub的个人开发工具，自动获取本周com
 
 3. **缓存策略**
    - GitHub API响应缓存
-   - Claude API结果缓存
+   - AI API结果缓存（DeepSeek API）
    - 客户端状态缓存
 
 4. **错误处理策略**
@@ -299,7 +299,7 @@ interface GitHubCommit {
 
 2. **API性能**
    - GitHub API响应缓存300秒
-   - Claude API结果缓存3600秒
+   - AI API结果缓存（DeepSeek API）3600秒
    - 客户端数据缓存localStorage
 
 3. **资源优化**
@@ -379,7 +379,7 @@ interface GitHubCommit {
    - 风险：API速率限制影响功能
    - 缓解：OAuth token提升限制、缓存策略
 
-2. **Claude API成本**
+2. **AI API成本**
    - 风险：API使用成本不可控
    - 缓解：使用限制、提示词优化、成本监控
 
@@ -405,12 +405,12 @@ NEXTAUTH_URL=https://your-app.vercel.app
 NEXTAUTH_SECRET=32-character-secret
 GITHUB_CLIENT_ID=github-oauth-client-id
 GITHUB_CLIENT_SECRET=github-oauth-client-secret
-ANTHROPIC_API_KEY=sk-ant-api-key-here
+ANTHROPIC_API_KEY=sk-ant-api-key-here  # DeepSeek API密钥（保持变量名兼容）
 
 # 可选变量
 APP_URL=https://your-app.vercel.app
 CACHE_TTL_GITHUB=300
-CACHE_TTL_CLAUDE=3600
+CACHE_TTL_AI=3600  # AI API响应缓存时间（DeepSeek API）
 RATE_LIMIT_REQUESTS=100
 RATE_LIMIT_WINDOW=900
 ```
@@ -420,7 +420,7 @@ RATE_LIMIT_WINDOW=900
 2. 安装依赖：`npm install`
 3. 复制环境变量：`cp .env.example .env.local`
 4. 配置GitHub OAuth应用
-5. 获取Claude API密钥
+5. 获取DeepSeek API密钥（配置到ANTHROPIC_API_KEY环境变量）
 6. 运行开发服务器：`npm run dev`
 
 ### 部署流程
@@ -432,7 +432,7 @@ RATE_LIMIT_WINDOW=900
 
 ---
 
-**文档版本**: 1.0  
+**文档版本**: 1.1  
 **创建日期**: 2026-04-13  
 **最后更新**: 2026-04-13  
 **状态**: 草案  

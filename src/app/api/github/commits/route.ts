@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
               data: [],
             }, { headers });
           }
-        } catch (e) {
+        } catch {
           // 如果不是预期的空仓库错误，继续正常错误处理
         }
       }

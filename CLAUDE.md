@@ -9,7 +9,7 @@ AI-powered weekly report generator. Connects to GitHub, summarizes  commits with
 - Next.js 15 (App Router) + TypeScript
 - Tailwind CSS for styling
 - NextAuth.js for GitHub OAuth
-- Claude API (via Anthropic SDK) for summarization  
+- DeepSeek API (via OpenAI-compatible SDK) for summarization  
 
 ## Code Style  
 

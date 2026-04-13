@@ -20,7 +20,7 @@ import { useGitHub } from '@/hooks/useGitHub';
 import { useReport } from '@/hooks/useReport';
 import { GitHubCommit, ReportOptions } from '@/types';
 import { REPORT_STYLES, REPORT_LENGTHS, TIME_RANGES, DEFAULT_REPORT_OPTIONS } from '@/lib/constants';
-import { getThisWeekRange, getLastWeekRange, getLastNDaysRange, formatDate } from '@/utils/date';
+import { getThisWeekRange, getLastWeekRange, getLastNDaysRange, formatDateForGitHub } from '@/utils/date';
 import { cn } from '@/lib/utils';
 
 export default function DashboardPage() {
@@ -62,23 +62,23 @@ export default function DashboardPage() {
     switch (timeRange) {
       case 'this-week':
         const thisWeek = getThisWeekRange();
-        since = formatDate(thisWeek.start);
-        until = formatDate(thisWeek.end);
+        since = formatDateForGitHub(thisWeek.start);
+        until = formatDateForGitHub(thisWeek.end);
         break;
       case 'last-week':
         const lastWeek = getLastWeekRange();
-        since = formatDate(lastWeek.start);
-        until = formatDate(lastWeek.end);
+        since = formatDateForGitHub(lastWeek.start);
+        until = formatDateForGitHub(lastWeek.end);
         break;
       case 'last-7-days':
         const last7Days = getLastNDaysRange(7);
-        since = formatDate(last7Days.start);
-        until = formatDate(last7Days.end);
+        since = formatDateForGitHub(last7Days.start);
+        until = formatDateForGitHub(last7Days.end);
         break;
       case 'last-30-days':
         const last30Days = getLastNDaysRange(30);
-        since = formatDate(last30Days.start);
-        until = formatDate(last30Days.end);
+        since = formatDateForGitHub(last30Days.start);
+        until = formatDateForGitHub(last30Days.end);
         break;
       case 'custom':
         if (customStartDate && customEndDate) {
@@ -87,8 +87,8 @@ export default function DashboardPage() {
         } else {
           // 如果没有自定义日期，使用最近7天
           const defaultRange = getLastNDaysRange(7);
-          since = formatDate(defaultRange.start);
-          until = formatDate(defaultRange.end);
+          since = formatDateForGitHub(defaultRange.start);
+          until = formatDateForGitHub(defaultRange.end);
         }
         break;
     }

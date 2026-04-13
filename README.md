@@ -1,11 +1,11 @@
 # AI周报助手
 
-基于Next.js 15开发的AI周报生成工具，连接GitHub自动获取commit记录，使用Claude AI生成可读的周报页面，并支持一键分享。
+基于Next.js 15开发的AI周报生成工具，连接GitHub自动获取commit记录，使用DeepSeek AI生成可读的周报页面，并支持一键分享。
 
 ## 功能特性
 
 - 🔐 **GitHub OAuth认证** - 安全登录，获取仓库访问权限
-- 📊 **智能周报生成** - 使用Claude AI分析commit记录，生成结构化周报
+- 📊 **智能周报生成** - 使用DeepSeek AI分析commit记录，基于实际项目内容生成结构化周报
 - 🎨 **多种报告风格** - 专业、轻松、技术等多种风格可选
 - 📅 **灵活时间范围** - 本周、上周、自定义时间范围
 - 📤 **一键分享** - 生成可分享链接、PDF导出、Markdown复制
@@ -18,7 +18,7 @@
 - **样式方案**: Tailwind CSS
 - **开发语言**: TypeScript
 - **认证方案**: NextAuth.js (GitHub OAuth)
-- **AI服务**: Claude API (Anthropic SDK)
+- **AI服务**: DeepSeek API (OpenAI兼容格式)
 - **UI组件**: Lucide React图标
 - **代码质量**: ESLint + TypeScript严格模式
 - **部署平台**: Vercel (推荐)
@@ -30,7 +30,7 @@
 - Node.js 18+ 
 - npm 或 yarn 或 pnpm
 - GitHub OAuth应用
-- Claude API密钥
+- DeepSeek API密钥
 
 ### 安装步骤
 
@@ -49,7 +49,7 @@
    ```bash
    cp .env.example .env.local
    ```
-   编辑`.env.local`文件，填写您的GitHub OAuth和Claude API配置。
+   编辑`.env.local`文件，填写您的GitHub OAuth和DeepSeek API配置。
 
 4. 运行开发服务器
    ```bash
@@ -68,7 +68,13 @@
 | `NEXTAUTH_SECRET` | NextAuth.js加密密钥 | 是 |
 | `GITHUB_CLIENT_ID` | GitHub OAuth客户端ID | 是 |
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth客户端密钥 | 是 |
-| `ANTHROPIC_API_KEY` | Claude API密钥 | 是 |
+| `ANTHROPIC_API_KEY` | DeepSeek API密钥（变量名保持兼容） | 是 |
+
+**AI服务说明**：
+- 本项目使用DeepSeek API（兼容OpenAI格式）进行周报生成
+- 变量名保持为`ANTHROPIC_API_KEY`以向后兼容现有配置
+- 确保您的DeepSeek API密钥具有足够的额度
+- API基础URL：`https://api.deepseek.com`，模型：`deepseek-chat`
 
 ## 项目结构
 
