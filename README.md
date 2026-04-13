@@ -1,36 +1,122 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AI周报助手
 
-## Getting Started
+基于Next.js 15开发的AI周报生成工具，连接GitHub自动获取commit记录，使用Claude AI生成可读的周报页面，并支持一键分享。
 
-First, run the development server:
+## 功能特性
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- 🔐 **GitHub OAuth认证** - 安全登录，获取仓库访问权限
+- 📊 **智能周报生成** - 使用Claude AI分析commit记录，生成结构化周报
+- 🎨 **多种报告风格** - 专业、轻松、技术等多种风格可选
+- 📅 **灵活时间范围** - 本周、上周、自定义时间范围
+- 📤 **一键分享** - 生成可分享链接、PDF导出、Markdown复制
+- 📱 **响应式设计** - 移动端友好的现代化界面
+- 🎯 **TypeScript支持** - 完整的类型安全开发体验
+
+## 技术栈
+
+- **前端框架**: Next.js 15 (App Router)
+- **样式方案**: Tailwind CSS
+- **开发语言**: TypeScript
+- **认证方案**: NextAuth.js (GitHub OAuth)
+- **AI服务**: Claude API (Anthropic SDK)
+- **UI组件**: Lucide React图标
+- **代码质量**: ESLint + TypeScript严格模式
+- **部署平台**: Vercel (推荐)
+
+## 快速开始
+
+### 环境要求
+
+- Node.js 18+ 
+- npm 或 yarn 或 pnpm
+- GitHub OAuth应用
+- Claude API密钥
+
+### 安装步骤
+
+1. 克隆仓库
+   ```bash
+   git clone <repository-url>
+   cd weekly-report
+   ```
+
+2. 安装依赖
+   ```bash
+   npm install
+   ```
+
+3. 配置环境变量
+   ```bash
+   cp .env.example .env.local
+   ```
+   编辑`.env.local`文件，填写您的GitHub OAuth和Claude API配置。
+
+4. 运行开发服务器
+   ```bash
+   npm run dev
+   ```
+
+5. 打开浏览器访问 [http://localhost:3000](http://localhost:3000)
+
+### 环境变量配置
+
+参考`.env.example`文件，需要配置以下变量：
+
+| 变量名 | 说明 | 必需 |
+|--------|------|------|
+| `NEXTAUTH_URL` | NextAuth.js回调URL | 是 |
+| `NEXTAUTH_SECRET` | NextAuth.js加密密钥 | 是 |
+| `GITHUB_CLIENT_ID` | GitHub OAuth客户端ID | 是 |
+| `GITHUB_CLIENT_SECRET` | GitHub OAuth客户端密钥 | 是 |
+| `ANTHROPIC_API_KEY` | Claude API密钥 | 是 |
+
+## 项目结构
+
+```
+src/
+├── app/                    # Next.js App Router页面
+│   ├── api/               # API路由
+│   │   ├── auth/          # 认证相关API
+│   │   ├── github/        # GitHub数据API
+│   │   ├── generate/      # AI报告生成API
+│   │   └── share/         # 分享功能API
+│   ├── dashboard/         # 仪表板页面
+│   ├── report/            # 报告详情页面
+│   └── layout.tsx         # 根布局
+├── components/            # React组件
+│   ├── common/           # 通用组件
+│   ├── layout/           # 布局组件
+│   └── ui/               # UI组件
+├── hooks/                # 自定义React Hooks
+├── lib/                  # 工具库和常量
+├── types/                # TypeScript类型定义
+└── utils/                # 工具函数
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 开发脚本
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `npm run dev` - 启动开发服务器
+- `npm run build` - 构建生产版本
+- `npm run start` - 启动生产服务器
+- `npm run lint` - 运行ESLint代码检查
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 部署
 
-## Learn More
+### Vercel部署（推荐）
 
-To learn more about Next.js, take a look at the following resources:
+1. 推送代码到GitHub仓库
+2. 在[Vercel](https://vercel.com)导入项目
+3. 配置环境变量
+4. 点击部署
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 其他部署方式
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+参考Next.js官方部署文档：https://nextjs.org/docs/app/building-your-application/deploying
 
-## Deploy on Vercel
+## 许可证
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+MIT
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 联系与支持
+
+如有问题或建议，请提交GitHub Issue或联系项目维护者。
