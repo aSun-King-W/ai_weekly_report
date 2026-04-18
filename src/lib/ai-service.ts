@@ -1,6 +1,7 @@
 // AI服务模块 - 用于集成DeepSeek API生成周报
 import OpenAI from 'openai';
 import { GitHubCommit, ReportOptions, ReportResult } from '@/types';
+import { cleanHyphenation } from '@/lib/utils';
 
 export class AIService {
   private client: OpenAI;
@@ -45,13 +46,17 @@ export class AIService {
       const generationTime = Date.now() - startTime;
       const content = response.choices[0]?.message?.content || '';
 
+      // 清理连字符问题 - 返回原始内容，让调用者根据需要处理
+      const cleanedContent = content;
+      // 注意：不再调用cleanHyphenation，让调用者决定如何处理
+
       // 如果没有生成内容，使用备用方案
-      if (!content.trim()) {
+      if (!cleanedContent.trim()) {
         return this.generateFallbackReport(commits, options, generationTime);
       }
 
       return {
-        report: content,
+        report: cleanedContent,
         metadata: {
           commitCount: commits.length,
           generationTime,
@@ -92,6 +97,12 @@ export class AIService {
 2. 长度：${length}
 3. 格式：使用Markdown格式，包含适当的标题和章节
 4. 语言：使用中文
+
+重要格式规范：
+- 避免在单词或短语中间使用连字符（-）后换行
+- 不要生成类似"AI-"、"真实-"、"开发-"等格式的文本
+- 如果需要在行尾断开长单词，请使用完整的单词，不要使用连字符
+- 确保文本的自然换行，不要人为添加连字符
 
 重要原则：
 - 基于实际的提交记录内容生成报告，不要虚构或添加无关内容

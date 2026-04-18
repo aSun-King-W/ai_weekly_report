@@ -21,7 +21,10 @@ import { useReport } from '@/hooks/useReport';
 import { GitHubCommit, ReportOptions } from '@/types';
 import { REPORT_STYLES, REPORT_LENGTHS, TIME_RANGES, DEFAULT_REPORT_OPTIONS } from '@/lib/constants';
 import { getThisWeekRange, getLastWeekRange, getLastNDaysRange, formatDateForGitHub } from '@/utils/date';
-import { cn } from '@/lib/utils';
+import { cn, cleanHyphenation } from '@/lib/utils';
+import { downloadReportPDF } from '@/utils/pdf';
+import { downloadMarkdownReport } from '@/utils/markdown';
+import ReactMarkdown from 'react-markdown';
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
@@ -36,6 +39,8 @@ export default function DashboardPage() {
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
   const [reportOptions, setReportOptions] = useState<ReportOptions>(DEFAULT_REPORT_OPTIONS);
+  const [exportingPDF, setExportingPDF] = useState(false);
+  const [exportingMarkdown, setExportingMarkdown] = useState(false);
 
   const loadRepositories = async () => {
     if (!session?.accessToken) return;
@@ -147,14 +152,70 @@ export default function DashboardPage() {
     alert('分享功能开发中...');
   };
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
     if (!report) {
       alert('请先生成报告');
       return;
     }
 
-    // TODO: 实现PDF导出功能
-    alert('PDF导出功能开发中...');
+    setExportingPDF(true);
+    try {
+      // 构建元数据
+      const metadata = {
+        commitCount: commits.length,
+        repository: selectedRepo || '',
+        timeRange: TIME_RANGES.find(range => range.value === timeRange)?.label || timeRange,
+        style: REPORT_STYLES.find(style => style.value === reportOptions.style)?.label || reportOptions.style,
+        length: REPORT_LENGTHS.find(length => length.value === reportOptions.length)?.label || reportOptions.length,
+        generationTime: new Date().getTime(),
+        date: new Date().toLocaleDateString('zh-CN'),
+      };
+
+      // 生成文件名
+      const date = new Date().toISOString().split('T')[0];
+      const repoName = selectedRepo ? selectedRepo.split('/')[1] : 'report';
+      const filename = `weekly-report-${repoName}-${date}.pdf`;
+
+      await downloadReportPDF(report, metadata, filename);
+    } catch (error) {
+      console.error('导出PDF失败:', error);
+      alert('导出PDF失败，请重试或检查控制台');
+    } finally {
+      setExportingPDF(false);
+    }
+  };
+
+  const handleExportMarkdown = () => {
+    if (!report) {
+      alert('请先生成报告');
+      return;
+    }
+
+    setExportingMarkdown(true);
+    try {
+      // 构建元数据（与PDF导出相同）
+      const metadata = {
+        commitCount: commits.length,
+        repository: selectedRepo || '',
+        timeRange: TIME_RANGES.find(range => range.value === timeRange)?.label || timeRange,
+        style: REPORT_STYLES.find(style => style.value === reportOptions.style)?.label || reportOptions.style,
+        length: REPORT_LENGTHS.find(length => length.value === reportOptions.length)?.label || reportOptions.length,
+        generationTime: new Date().getTime(),
+        date: new Date().toLocaleDateString('zh-CN'),
+      };
+
+      // 生成文件名（使用Markdown扩展名）
+      const date = new Date().toISOString().split('T')[0];
+      const repoName = selectedRepo ? selectedRepo.split('/')[1] : 'report';
+      const filename = `weekly-report-${repoName}-${date}.md`;
+
+      downloadMarkdownReport(report, metadata, filename);
+    } catch (error) {
+      console.error('导出Markdown失败:', error);
+      alert('导出Markdown失败，请重试或检查控制台');
+    } finally {
+      setExportingMarkdown(false);
+    }
   };
 
   if (status === 'loading') {
@@ -540,8 +601,19 @@ export default function DashboardPage() {
                         variant="outline"
                         size="sm"
                         onClick={handleExportPDF}
+                        loading={exportingPDF}
+                        disabled={exportingPDF}
                       >
                         导出PDF
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleExportMarkdown}
+                        loading={exportingMarkdown}
+                        disabled={exportingMarkdown}
+                      >
+                        导出Markdown
                       </Button>
                       <Button
                         variant="primary"
@@ -555,10 +627,10 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="p-6">
-                  <div className="prose max-w-none dark:prose-invert">
-                    <div className="whitespace-pre-wrap rounded-lg bg-gray-50 p-6 dark:bg-gray-800">
-                      {report}
-                    </div>
+                  <div className="report-container rounded-xl bg-white shadow-lg p-6 md:p-8 dark:bg-gray-900 max-w-5xl mx-auto">
+                    <ReactMarkdown>
+                      {cleanHyphenation(report, { useNonBreakingHyphen: false })}
+                    </ReactMarkdown>
                   </div>
                 </div>
               </div>
