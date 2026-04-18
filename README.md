@@ -12,15 +12,45 @@
 - 📱 **响应式设计** - 移动端友好的现代化界面
 - 🎯 **TypeScript支持** - 完整的类型安全开发体验
 
+## 功能详情
+
+### 🔐 GitHub集成
+- 安全的GitHub OAuth认证，仅需一次授权
+- 自动获取您的所有GitHub仓库列表
+- 按时间范围筛选提交记录（本周、上周、自定义日期）
+- 支持多仓库同时分析
+
+### 🤖 AI智能分析
+- 使用DeepSeek AI分析提交记录内容
+- 支持三种报告风格：**专业**、**轻松**、**技术**
+- 支持三种详细程度：**简洁**、**详细**、**完整**
+- 自动识别工作类型（功能开发、问题修复、重构等）
+- 智能生成下周工作计划
+
+### 📄 报告输出
+- **实时预览**：Markdown格式实时渲染
+- **PDF导出**：生成专业格式的PDF文档
+- **Markdown复制**：一键复制Markdown源码
+- **分享链接**：生成唯一URL分享给团队成员
+- **响应式设计**：在手机、平板、电脑上完美显示
+
+### ⚙️ 高级功能
+- **缓存机制**：减少API调用，提升响应速度
+- **错误处理**：优雅的降级方案，AI服务不可用时生成基础报告
+- **国际化**：中文界面和报告生成
+- **暗色模式**：支持系统主题切换
+
 ## 技术栈
 
-- **前端框架**: Next.js 15 (App Router)
-- **样式方案**: Tailwind CSS
-- **开发语言**: TypeScript
-- **认证方案**: NextAuth.js (GitHub OAuth)
-- **AI服务**: DeepSeek API (OpenAI兼容格式)
+- **前端框架**: Next.js 16.2.3 (App Router)
+- **样式方案**: Tailwind CSS v4
+- **开发语言**: TypeScript 5+
+- **认证方案**: NextAuth.js v4 (GitHub OAuth)
+- **AI服务**: DeepSeek API (OpenAI兼容格式) + OpenAI SDK
 - **UI组件**: Lucide React图标
-- **代码质量**: ESLint + TypeScript严格模式
+- **PDF生成**: @react-pdf/renderer
+- **Markdown渲染**: react-markdown
+- **代码质量**: ESLint 9 + TypeScript严格模式
 - **部署平台**: Vercel (推荐)
 
 ## 快速开始
@@ -34,90 +64,223 @@
 
 ### 安装步骤
 
-1. 克隆仓库
+1. **克隆仓库**
    ```bash
    git clone <repository-url>
    cd weekly-report
    ```
 
-2. 安装依赖
+2. **安装依赖**
    ```bash
    npm install
+   # 或使用yarn/pnpm
+   yarn install
    ```
 
-3. 配置环境变量
+3. **配置环境变量**
    ```bash
    cp .env.example .env.local
    ```
-   编辑`.env.local`文件，填写您的GitHub OAuth和DeepSeek API配置。
+   编辑`.env.local`文件，填写您的配置：
+   - `NEXTAUTH_SECRET`: 运行 `openssl rand -base64 32` 生成
+   - `GITHUB_CLIENT_ID` 和 `GITHUB_CLIENT_SECRET`: 从GitHub OAuth应用获取
+   - `ANTHROPIC_API_KEY`: 从DeepSeek平台获取
 
-4. 运行开发服务器
+4. **运行开发服务器**
    ```bash
    npm run dev
+   # 或
+   yarn dev
    ```
 
-5. 打开浏览器访问 [http://localhost:3000](http://localhost:3000)
+5. **打开浏览器访问** [http://localhost:3000](http://localhost:3000)
 
 ### 环境变量配置
+
+复制`.env.example`为`.env.local`并填写实际值：
+
+```bash
+cp .env.example .env.local
+```
 
 参考`.env.example`文件，需要配置以下变量：
 
 | 变量名 | 说明 | 必需 |
 |--------|------|------|
-| `NEXTAUTH_URL` | NextAuth.js回调URL | 是 |
-| `NEXTAUTH_SECRET` | NextAuth.js加密密钥 | 是 |
+| `NEXTAUTH_URL` | NextAuth.js回调URL，开发环境通常为`http://localhost:3000` | 是 |
+| `NEXTAUTH_SECRET` | NextAuth.js加密密钥，可使用`openssl rand -base64 32`生成 | 是 |
 | `GITHUB_CLIENT_ID` | GitHub OAuth客户端ID | 是 |
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth客户端密钥 | 是 |
-| `ANTHROPIC_API_KEY` | DeepSeek API密钥（变量名保持兼容） | 是 |
+| `ANTHROPIC_API_KEY` | DeepSeek API密钥 | 是 |
+| `APP_URL` | 应用基础URL（可选） | 否 |
 
 **AI服务说明**：
-- 本项目使用DeepSeek API（兼容OpenAI格式）进行周报生成
-- 变量名保持为`ANTHROPIC_API_KEY`以向后兼容现有配置
-- 确保您的DeepSeek API密钥具有足够的额度
+- 本项目使用**DeepSeek API**（兼容OpenAI格式）进行周报生成
+- 变量名保持为`ANTHROPIC_API_KEY`以保持向后兼容性
+- 获取DeepSeek API密钥：访问[DeepSeek平台](https://platform.deepseek.com/)注册并获取API密钥
 - API基础URL：`https://api.deepseek.com`，模型：`deepseek-chat`
+- 项目使用OpenAI SDK调用DeepSeek API，完全兼容OpenAI格式
+
+**GitHub OAuth应用配置**：
+1. 访问[GitHub Developer Settings](https://github.com/settings/developers)
+2. 创建新的OAuth App
+3. 设置回调URL为：`http://localhost:3000/api/auth/callback/github`
+4. 获取Client ID和Client Secret
 
 ## 项目结构
 
 ```
 src/
-├── app/                    # Next.js App Router页面
-│   ├── api/               # API路由
-│   │   ├── auth/          # 认证相关API
-│   │   ├── github/        # GitHub数据API
-│   │   ├── generate/      # AI报告生成API
-│   │   └── share/         # 分享功能API
-│   ├── dashboard/         # 仪表板页面
-│   ├── report/            # 报告详情页面
-│   └── layout.tsx         # 根布局
-├── components/            # React组件
-│   ├── common/           # 通用组件
-│   ├── layout/           # 布局组件
-│   └── ui/               # UI组件
-├── hooks/                # 自定义React Hooks
-├── lib/                  # 工具库和常量
-├── types/                # TypeScript类型定义
-└── utils/                # 工具函数
+├── app/                              # Next.js App Router页面
+│   ├── api/                          # API路由
+│   │   ├── auth/[...nextauth]/      # NextAuth.js认证路由
+│   │   ├── github/                   # GitHub数据API
+│   │   │   ├── commits/             # 获取提交记录
+│   │   │   ├── repositories/        # 获取仓库列表
+│   │   │   └── user/                # 获取用户信息
+│   │   ├── generate/report/         # AI报告生成API
+│   │   └── share/[id]/              # 分享功能API
+│   ├── auth/                         # 认证相关页面
+│   │   ├── error/                    # 认证错误页面
+│   │   ├── signin/                   # 登录页面
+│   │   └── signout/                  # 登出页面
+│   ├── dashboard/                    # 仪表板页面
+│   ├── layout.tsx                    # 根布局
+│   └── page.tsx                      # 首页
+├── components/                       # React组件
+│   ├── common/                       # 通用组件（如Button）
+│   ├── layout/                       # 布局组件（如Header）
+│   ├── pdf/                          # PDF生成组件
+│   └── providers/                    # 上下文提供者
+├── hooks/                            # 自定义React Hooks
+│   ├── useGitHub.ts                  # GitHub数据获取Hook
+│   └── useReport.ts                  # 报告生成Hook
+├── lib/                              # 工具库和常量
+│   ├── ai-service.ts                 # DeepSeek AI服务
+│   ├── auth.ts                       # 认证工具函数
+│   ├── constants.ts                  # 常量定义
+│   └── utils.ts                      # 通用工具函数
+├── types/                            # TypeScript类型定义
+│   └── index.ts                      # 全局类型定义
+└── utils/                            # 工具函数
+    ├── api.ts                        # API调用封装
+    ├── date.ts                       # 日期处理函数
+    ├── markdown.ts                   # Markdown处理
+    └── pdf.tsx                       # PDF生成工具
 ```
 
 ## 开发脚本
 
-- `npm run dev` - 启动开发服务器
-- `npm run build` - 构建生产版本
-- `npm run start` - 启动生产服务器
-- `npm run lint` - 运行ESLint代码检查
+```bash
+# 启动开发服务器
+npm run dev
+
+# 构建生产版本
+npm run build
+
+# 启动生产服务器
+npm run start
+
+# 运行代码检查
+npm run lint
+
+# 清理构建缓存
+rm -rf .next
+# Windows: rmdir /s /q .next
+```
 
 ## 部署
 
 ### Vercel部署（推荐）
 
-1. 推送代码到GitHub仓库
+1. 推送代码到GitHub、GitLab或Bitbucket仓库
 2. 在[Vercel](https://vercel.com)导入项目
-3. 配置环境变量
-4. 点击部署
+3. 配置环境变量（参考环境变量配置部分）
+4. 点击部署，Vercel会自动检测Next.js项目
 
-### 其他部署方式
+### Docker部署
 
-参考Next.js官方部署文档：https://nextjs.org/docs/app/building-your-application/deploying
+项目包含简单的Docker配置示例：
+
+```dockerfile
+# 使用官方Node.js镜像
+FROM node:20-alpine
+
+# 设置工作目录
+WORKDIR /app
+
+# 复制包管理文件
+COPY package*.json ./
+
+# 安装依赖
+RUN npm ci --only=production
+
+# 复制应用代码
+COPY . .
+
+# 构建应用
+RUN npm run build
+
+# 暴露端口
+EXPOSE 3000
+
+# 启动应用
+CMD ["npm", "start"]
+```
+
+### 传统服务器部署
+
+```bash
+# 1. 构建应用
+npm run build
+
+# 2. 安装PM2等进程管理工具
+npm install -g pm2
+
+# 3. 启动应用
+pm2 start npm --name "weekly-report" -- start
+
+# 4. 配置Nginx反向代理
+# 编辑Nginx配置，将请求代理到localhost:3000
+```
+
+### 环境注意事项
+- 生产环境务必设置正确的`NEXTAUTH_URL`
+- 使用强密码生成`NEXTAUTH_SECRET`
+- 配置合适的缓存策略
+- 建议启用HTTPS
+
+## 常见问题
+
+### ❓ 如何获取DeepSeek API密钥？
+1. 访问 [DeepSeek平台](https://platform.deepseek.com/)
+2. 注册账号并登录
+3. 在API密钥页面创建新的密钥
+4. 复制密钥到`ANTHROPIC_API_KEY`环境变量
+
+### ❓ GitHub OAuth回调URL应该设置什么？
+- 开发环境：`http://localhost:3000/api/auth/callback/github`
+- 生产环境：`https://你的域名.com/api/auth/callback/github`
+
+### ❓ 报告生成失败怎么办？
+1. 检查DeepSeek API密钥是否正确
+2. 确认API额度是否充足
+3. 查看浏览器控制台或服务器日志
+4. 应用会自动降级生成基础版报告
+
+### ❓ 如何支持其他AI服务？
+项目使用OpenAI兼容格式，理论上支持任何兼容OpenAI API的AI服务：
+1. 修改`src/lib/ai-service.ts`中的`baseURL`
+2. 更新对应的API密钥环境变量
+3. 调整模型名称和参数
+
+### ❓ 如何添加新的报告风格？
+1. 编辑`src/lib/ai-service.ts`中的`buildSystemPrompt`方法
+2. 在`styleDescriptions`对象中添加新风格描述
+3. 更新前端选择器组件
+
+### ❓ 项目支持私有仓库吗？
+是的，GitHub OAuth会请求相应的仓库权限。确保OAuth应用有正确的权限范围。
 
 ## 许可证
 
