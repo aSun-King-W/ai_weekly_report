@@ -1,6 +1,6 @@
 # AI周报助手
 
-基于Next.js 15开发的AI周报生成工具，连接GitHub自动获取commit记录，使用DeepSeek AI生成可读的周报页面，并支持一键分享。
+基于Next.js 16开发的AI周报生成工具，连接GitHub自动获取commit记录，使用DeepSeek AI生成可读的周报页面，并支持一键分享。
 
 ## 功能特性
 
