@@ -1,16 +1,19 @@
 # AI周报助手
 
-基于Next.js 16开发的AI周报生成工具，连接GitHub自动获取commit记录，使用DeepSeek AI生成可读的周报页面，并支持一键分享。
+基于Next.js 15开发的AI周报生成工具，连接GitHub自动获取commit记录，使用DeepSeek AI生成可读的周报页面，并支持一键分享。
 
 ## 功能特性
 
 - 🔐 **GitHub OAuth认证** - 安全登录，获取仓库访问权限
 - 📊 **智能周报生成** - 使用DeepSeek AI分析commit记录，基于实际项目内容生成结构化周报
+- 🤖 **Tool Use Agent** - 智能Agent支持自然语言查询，自动调用GitHub API和报告生成工具，实现完整的工具调用链
 - 🎨 **多种报告风格** - 专业、轻松、技术等多种风格可选
 - 📅 **灵活时间范围** - 本周、上周、自定义时间范围
 - 📤 **一键分享** - 生成可分享链接、PDF导出、Markdown复制
+- ⬇️ **文件下载** - 支持直接下载Markdown格式周报文件
 - 📱 **响应式设计** - 移动端友好的现代化界面
 - 🎯 **TypeScript支持** - 完整的类型安全开发体验
+- ✅ **结构化评估** - 包含10个测试用例的自动化评估系统
 
 ## 功能详情
 
@@ -27,10 +30,18 @@
 - 自动识别工作类型（功能开发、问题修复、重构等）
 - 智能生成下周工作计划
 
+### 🧠 Tool Use Agent
+- **自然语言接口**：支持自然语言查询生成周报
+- **智能工具调用**：自动调用GitHub API获取提交记录，调用报告生成工具
+- **多步工作流**：支持复杂的多步查询和工具调用链
+- **错误处理**：智能处理错误情况，提供有意义的反馈
+- **评估系统**：包含10个测试用例的结构化评估，计算关键词匹配率
+
 ### 📄 报告输出
 - **实时预览**：Markdown格式实时渲染
 - **PDF导出**：生成专业格式的PDF文档
 - **Markdown复制**：一键复制Markdown源码
+- **文件下载**：支持直接下载Markdown格式周报文件
 - **分享链接**：生成唯一URL分享给团队成员
 - **响应式设计**：在手机、平板、电脑上完美显示
 
@@ -133,6 +144,8 @@ cp .env.example .env.local
 src/
 ├── app/                              # Next.js App Router页面
 │   ├── api/                          # API路由
+│   │   ├── agent/                    # Agent API
+│   │   │   └── report/               # Agent报告生成API
 │   │   ├── auth/[...nextauth]/      # NextAuth.js认证路由
 │   │   ├── github/                   # GitHub数据API
 │   │   │   ├── commits/             # 获取提交记录
@@ -157,14 +170,19 @@ src/
 │   └── useReport.ts                  # 报告生成Hook
 ├── lib/                              # 工具库和常量
 │   ├── ai-service.ts                 # DeepSeek AI服务
+│   ├── agent-service.ts              # Agent核心服务
 │   ├── auth.ts                       # 认证工具函数
 │   ├── constants.ts                  # 常量定义
+│   ├── tools.ts                      # 工具定义和实现
 │   └── utils.ts                      # 通用工具函数
+├── tests/                            # 测试文件
+│   └── agent.test.ts                 # Agent测试用例
 ├── types/                            # TypeScript类型定义
 │   └── index.ts                      # 全局类型定义
 └── utils/                            # 工具函数
     ├── api.ts                        # API调用封装
     ├── date.ts                       # 日期处理函数
+    ├── evaluation.ts                 # Agent评估工具
     ├── markdown.ts                   # Markdown处理
     └── pdf.tsx                       # PDF生成工具
 ```
@@ -188,6 +206,89 @@ npm run lint
 rm -rf .next
 # Windows: rmdir /s /q .next
 ```
+
+## Agent使用
+
+### API端点
+
+Agent提供了以下API端点：
+
+#### 1. 自然语言查询接口
+```
+POST /api/agent/report
+```
+**请求体**：
+```json
+{
+  "query": "为facebook/react仓库生成本周的技术风格周报"
+}
+```
+**响应**：
+```json
+{
+  "success": true,
+  "data": {
+    "content": "生成的周报内容...",
+    "toolCalls": 2,
+    "metadata": {
+      "executionTime": 3456,
+      "toolExecutionTimes": {
+        "tool_execution": 1234
+      }
+    }
+  }
+}
+```
+
+#### 2. 简化参数接口
+```
+GET /api/agent/report?owner=facebook&repo=react&since=2024-01-01&until=2024-01-07&style=technical&length=detailed&includeMetrics=true
+```
+
+#### 3. 文件下载接口
+支持直接下载Markdown格式周报文件：
+
+**GET请求下载**：
+```
+GET /api/agent/report?owner=facebook&repo=react&download=true
+```
+
+**POST请求下载**：
+```
+POST /api/agent/report
+```
+请求体：
+```json
+{
+  "query": "为facebook/react仓库生成本周的技术风格周报",
+  "download": true
+}
+```
+
+**响应**：
+- 当`download=true`时，返回Markdown文件下载，文件名格式：`weekly-report-owner-repo-YYYY-MM-DD.md`
+- 当`download=false`或未指定时，返回JSON响应包含周报内容
+
+### 评估系统
+
+项目包含一个完整的Agent评估系统：
+
+```bash
+# 运行模拟评估
+node -r ts-node/register src/tests/agent.test.ts
+
+# 运行真实评估（需要环境变量）
+node -r ts-node/register src/tests/agent.test.ts --real
+```
+
+评估系统包含10个测试用例，检查关键词匹配率和报告结构，生成详细的评估报告。
+
+### 扩展Agent
+
+要添加新工具：
+1. 在 `src/lib/tools.ts` 中定义新工具函数
+2. 在 `getToolsDefinition()` 中添加工具定义
+3. 在 `executeToolCalls()` 中添加工具调用处理
 
 ## 部署
 

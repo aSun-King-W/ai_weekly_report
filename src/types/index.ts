@@ -59,3 +59,58 @@ export interface ApiResponse<T = unknown> {
   error?: string;
   message?: string;
 }
+
+// Agent相关类型
+export interface AgentContext {
+  accessToken?: string;
+  userId?: string;
+  userLogin?: string;
+}
+
+export interface AgentResult {
+  content: string;
+  toolCalls: number;
+  metadata?: {
+    executionTime: number;
+    toolExecutionTimes?: Record<string, number>;
+  };
+}
+
+export interface ToolDefinition {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: {
+      type: 'object';
+      properties: Record<string, any>;
+      required: string[];
+    };
+  };
+}
+
+export interface ToolCall {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string;
+  };
+}
+
+// OpenAI兼容的工具调用类型
+export interface OpenAIToolCall {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string;
+  };
+}
+
+export interface ToolResult {
+  tool_call_id: string;
+  role: 'tool';
+  name: string;
+  content: string;
+}
