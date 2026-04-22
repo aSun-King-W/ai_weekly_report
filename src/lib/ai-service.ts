@@ -1,7 +1,7 @@
 // AI服务模块 - 用于集成DeepSeek API生成周报
 import OpenAI from 'openai';
-import { GitHubCommit, ReportOptions, ReportResult } from '@/types';
-import { cleanHyphenation } from '@/lib/utils';
+import { GitHubCommit, ReportOptions, ReportResult } from '../types/index.ts';
+import { cleanHyphenation } from './utils.ts';
 
 export class AIService {
   private client: OpenAI;

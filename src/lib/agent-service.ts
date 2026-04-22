@@ -1,7 +1,7 @@
 // Agent核心服务，处理function calling和工具协调
 import OpenAI from 'openai';
-import { AgentContext, AgentResult } from '@/types';
-import { getToolsDefinition, executeToolCalls } from './tools';
+import { AgentContext, AgentResult } from '../types/index.ts';
+import { getToolsDefinition, executeToolCalls } from './tools.ts';
 
 // 系统提示词
 const SYSTEM_PROMPT = `你是一个AI周报生成助手，专门帮助用户获取GitHub提交记录并生成周报。

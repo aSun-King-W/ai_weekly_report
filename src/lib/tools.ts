@@ -1,5 +1,5 @@
 // 工具定义和实现模块
-import { GitHubCommit, ReportOptions, ToolDefinition, ToolCall, ToolResult, AgentContext } from '@/types';
+import { GitHubCommit, ReportOptions, ToolDefinition, ToolCall, ToolResult, AgentContext } from '../types/index.ts';
 import { getAIService } from './ai-service.ts';
 
 // GitHub API响应类型
