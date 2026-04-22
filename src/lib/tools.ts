@@ -1,6 +1,6 @@
 // 工具定义和实现模块
 import { GitHubCommit, ReportOptions, ToolDefinition, ToolCall, ToolResult, AgentContext } from '@/types';
-import { getAIService } from './ai-service';
+import { getAIService } from './ai-service.ts';
 
 // GitHub API响应类型
 interface GitHubApiCommit {
@@ -268,6 +268,15 @@ export async function executeToolCalls(
   for (const toolCall of toolCalls) {
     try {
       const { name, arguments: argsStr } = toolCall.function;
+
+      // 调试：记录arguments内容
+      console.log(`[executeToolCalls] 工具: ${name}, arguments长度: ${argsStr?.length || 0}`);
+      if (argsStr && argsStr.length > 1000) {
+        console.log(`[executeToolCalls] arguments前1000字符: ${argsStr.substring(0, 1000)}`);
+      } else if (argsStr) {
+        console.log(`[executeToolCalls] arguments: ${argsStr}`);
+      }
+
       const args = JSON.parse(argsStr);
 
       let content: string;

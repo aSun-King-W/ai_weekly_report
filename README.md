@@ -1,6 +1,6 @@
 # AI周报助手
 
-基于Next.js 15开发的AI周报生成工具，连接GitHub自动获取commit记录，使用DeepSeek AI生成可读的周报页面，并支持一键分享。
+基于Next.js 16开发的AI周报生成工具，连接GitHub自动获取commit记录，使用DeepSeek AI生成可读的周报页面，并支持一键分享。内置Tool Use Agent支持自然语言查询和完整的工具调用链。
 
 ## 功能特性
 
@@ -58,6 +58,7 @@
 - **开发语言**: TypeScript 5+
 - **认证方案**: NextAuth.js v4 (GitHub OAuth)
 - **AI服务**: DeepSeek API (OpenAI兼容格式) + OpenAI SDK
+- **Agent架构**: Tool Use Agent，支持function calling
 - **UI组件**: Lucide React图标
 - **PDF生成**: @react-pdf/renderer
 - **Markdown渲染**: react-markdown
@@ -114,6 +115,8 @@
 cp .env.example .env.local
 ```
 
+**注意**：评估系统会自动从`.env.local`文件加载环境变量。确保在运行评估前正确配置此文件。
+
 参考`.env.example`文件，需要配置以下变量：
 
 | 变量名 | 说明 | 必需 |
@@ -124,6 +127,7 @@ cp .env.example .env.local
 | `GITHUB_CLIENT_SECRET` | GitHub OAuth客户端密钥 | 是 |
 | `ANTHROPIC_API_KEY` | DeepSeek API密钥 | 是 |
 | `APP_URL` | 应用基础URL（可选） | 否 |
+| `GITHUB_ACCESS_TOKEN` | GitHub个人访问令牌（用于Agent评估系统） | 否（仅评估需要） |
 
 **AI服务说明**：
 - 本项目使用**DeepSeek API**（兼容OpenAI格式）进行周报生成
@@ -137,6 +141,12 @@ cp .env.example .env.local
 2. 创建新的OAuth App
 3. 设置回调URL为：`http://localhost:3000/api/auth/callback/github`
 4. 获取Client ID和Client Secret
+
+**GitHub个人访问令牌（用于评估系统）**：
+- `GITHUB_ACCESS_TOKEN`：用于Agent评估系统的GitHub个人访问令牌
+- 获取方式：访问[GitHub Personal Access Tokens](https://github.com/settings/tokens)创建新令牌
+- 权限要求：`repo`权限（访问私有仓库）或`public_repo`权限（仅访问公共仓库）
+- 注意：此令牌不同于OAuth凭证，用于直接调用GitHub API进行测试
 
 ## 项目结构
 
@@ -201,6 +211,12 @@ npm run start
 
 # 运行代码检查
 npm run lint
+
+# 运行Agent模拟评估
+node src/tests/agent.test.ts
+
+# 运行Agent真实评估（需要环境变量）
+node src/tests/agent.test.ts --real
 
 # 清理构建缓存
 rm -rf .next
@@ -271,17 +287,46 @@ POST /api/agent/report
 
 ### 评估系统
 
-项目包含一个完整的Agent评估系统：
+项目包含一个完整的Agent评估系统，用于测试Tool Use Agent的功能：
 
+#### 测试用例
+评估系统包含10个测试用例，涵盖不同场景：
+1. **简单请求** - 基本功能测试
+2. **带日期范围** - 测试日期参数解析
+3. **指定报告风格** - 测试风格参数
+4. **简洁报告** - 测试长度选项
+5. **包含统计指标** - 测试统计功能
+6. **中文请求** - 测试自然语言理解
+7. **混合参数** - 测试多参数解析
+8. **复杂请求** - 测试多条件请求
+9. **边缘情况-空仓库** - 测试空仓库处理
+10. **错误情况** - 测试错误处理
+
+**重要说明**：测试用例使用公共仓库（如`facebook/react`）进行**基准测试**，验证Agent的通用功能。实际使用时，请通过API端点测试您自己的仓库。
+
+#### 运行评估
 ```bash
-# 运行模拟评估
-node -r ts-node/register src/tests/agent.test.ts
+# 运行模拟评估（使用模拟数据）
+node src/tests/agent.test.ts
 
-# 运行真实评估（需要环境变量）
-node -r ts-node/register src/tests/agent.test.ts --real
+# 运行真实评估（需要环境变量，调用真实API）
+node src/tests/agent.test.ts --real
 ```
 
-评估系统包含10个测试用例，检查关键词匹配率和报告结构，生成详细的评估报告。
+**注意**：项目使用ES模块，测试文件可以直接使用Node.js运行（需要Node.js 18+）。
+
+#### 评估指标
+- **关键词匹配率**：检查输出是否包含预期关键词
+- **结构检查**：验证报告是否包含标题、概览、内容、总结等部分
+- **通过条件**：匹配率≥50%，有基本结构，长度>100字符
+
+#### 输出结果
+评估完成后会生成 `agent-evaluation-report.md` 文件，包含：
+- 总体统计（通过率、平均匹配率）
+- 每个测试用例的详细结果
+- 改进建议
+
+**注意**：真实评估会调用DeepSeek API和GitHub API，可能产生API调用费用。
 
 ### 扩展Agent
 
@@ -382,6 +427,27 @@ pm2 start npm --name "weekly-report" -- start
 
 ### ❓ 项目支持私有仓库吗？
 是的，GitHub OAuth会请求相应的仓库权限。确保OAuth应用有正确的权限范围。
+
+### ❓ Agent评估系统如何使用？
+1. 设置`GITHUB_ACCESS_TOKEN`环境变量（GitHub个人访问令牌）
+2. 运行`node src/tests/agent.test.ts --real`进行真实评估
+3. 查看生成的`agent-evaluation-report.md`文件
+4. 评估系统包含10个测试用例，使用公共仓库`facebook/react`进行基准测试
+
+### ❓ 为什么评估测试用例使用facebook/react而不是我的仓库？
+评估系统是**基准测试**，用于验证Agent的通用功能。测试用例使用公共仓库确保可重复性。您的实际使用应通过API端点测试自己的仓库：`/api/agent/report?owner=您的用户名&repo=您的仓库名`
+
+### ❓ Agent工具调用失败怎么办？
+1. 检查`src/lib/tools.ts`中的工具定义和实现
+2. 查看服务器日志中的工具调用错误信息
+3. 确保GitHub API令牌有正确的权限
+4. 验证DeepSeek API密钥有效且有足够额度
+
+### ❓ 如何扩展Agent的功能？
+1. 在`src/lib/tools.ts`中定义新工具函数
+2. 在`getToolsDefinition()`中添加工具定义
+3. 在`executeToolCalls()`中添加工具调用处理
+4. 更新`src/lib/agent-service.ts`中的系统提示词
 
 ## 许可证
 

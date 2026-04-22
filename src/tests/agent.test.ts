@@ -1,5 +1,46 @@
 // Agent测试文件
-import { runEvaluation, generateEvaluationReport } from '@/utils/evaluation';
+import { runEvaluation, generateEvaluationReport, TEST_CASES, evaluateTestCase, type EvaluationResult, type EvaluationSummary } from '../utils/evaluation.ts';
+import { getAgentService } from '../lib/agent-service.ts';
+import { AgentContext } from '../types/index.ts';
+import { fileURLToPath } from 'url';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
+// 加载.env.local文件中的环境变量
+function loadEnvFromFile() {
+  try {
+    const envPath = join(process.cwd(), '.env.local');
+    const envContent = readFileSync(envPath, 'utf-8');
+
+    const lines = envContent.split('\n');
+    for (const line of lines) {
+      // 跳过注释和空行
+      const trimmedLine = line.trim();
+      if (!trimmedLine || trimmedLine.startsWith('#')) {
+        continue;
+      }
+
+      // 解析键值对
+      const match = trimmedLine.match(/^([^=]+)=(.*)$/);
+      if (match) {
+        const key = match[1].trim();
+        const value = match[2].trim();
+
+        // 如果环境变量未设置，则设置它
+        if (!process.env[key]) {
+          process.env[key] = value;
+        }
+      }
+    }
+
+    console.log('已从 .env.local 文件加载环境变量');
+  } catch (error) {
+    console.warn('无法加载 .env.local 文件:', error.message);
+  }
+}
+
+// 加载环境变量
+loadEnvFromFile();
 
 // 模拟Agent执行函数（用于测试）
 // 在实际使用中，这个函数应该调用真实的Agent服务
@@ -115,9 +156,58 @@ async function mockExecuteQuery(query: string): Promise<string> {
 
 // 实际Agent执行函数（需要环境变量）
 async function realExecuteQuery(query: string): Promise<string> {
-  // 这里应该调用真实的Agent API
-  // 由于需要环境变量和认证，这里只提供框架
-  throw new Error('真实执行函数需要配置环境变量');
+  console.log(`[realExecuteQuery] 处理查询: "${query.substring(0, 50)}${query.length > 50 ? '...' : ''}"`);
+
+  // 检查必需的环境变量
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const accessToken = process.env.GITHUB_ACCESS_TOKEN;
+
+  console.log(`[realExecuteQuery] API密钥已设置: ${apiKey ? '是' : '否'}`);
+  console.log(`[realExecuteQuery] GitHub令牌已设置: ${accessToken ? '是' : '否'}`);
+
+  if (!apiKey) {
+    throw new Error('ANTHROPIC_API_KEY环境变量未设置');
+  }
+  if (!accessToken) {
+    throw new Error('GITHUB_ACCESS_TOKEN环境变量未设置');
+  }
+
+  try {
+    console.log('[realExecuteQuery] 获取AgentService实例...');
+    // 获取AgentService实例
+    const agentService = getAgentService();
+
+    // 构建AgentContext
+    const context: AgentContext = {
+      accessToken,
+      // 其他上下文信息可以留空，因为测试不需要用户会话
+    };
+
+    console.log('[realExecuteQuery] 调用agentService.processQuery...');
+
+    // 添加超时机制（60秒）
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error('Agent处理超时（60秒）'));
+      }, 60000);
+    });
+
+    // 处理查询（带超时）
+    const result = await Promise.race([
+      agentService.processQuery(query, context),
+      timeoutPromise
+    ]);
+
+    console.log(`[realExecuteQuery] 调用成功，返回内容长度: ${result.content.length}字符`);
+
+    // 返回内容
+    return result.content;
+  } catch (error) {
+    // 将错误转换为字符串，以便评估系统可以处理
+    const errorMessage = error instanceof Error ? error.message : '未知错误';
+    console.error(`[realExecuteQuery] 执行失败: ${errorMessage}`);
+    return `执行失败: ${errorMessage}`;
+  }
 }
 
 /**
@@ -168,17 +258,62 @@ async function runAgentEvaluation() {
  * 运行真实环境测试（需要配置环境变量）
  */
 async function runRealEvaluation() {
-  console.log('注意：真实环境测试需要配置以下环境变量：');
-  console.log('1. ANTHROPIC_API_KEY - DeepSeek API密钥');
-  console.log('2. GITHUB_CLIENT_ID - GitHub OAuth客户端ID');
-  console.log('3. GITHUB_CLIENT_SECRET - GitHub OAuth客户端密钥');
-  console.log('4. NEXTAUTH_SECRET - NextAuth密钥');
-  console.log('\n由于需要用户认证，真实测试需要在已登录状态下运行。\n');
+  console.log('开始真实环境评估测试...\n');
 
-  // 这里可以添加真实测试逻辑
-  // 需要创建一个测试用户会话并调用真实API
-  console.log('真实环境测试暂未实现，请使用模拟测试。');
-  return 1;
+  // 检查环境变量
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const accessToken = process.env.GITHUB_ACCESS_TOKEN;
+
+  if (!apiKey || !accessToken) {
+    console.error('错误：缺少必需的环境变量');
+    console.error('请设置以下环境变量：');
+    console.error('1. ANTHROPIC_API_KEY - DeepSeek API密钥');
+    console.error('2. GITHUB_ACCESS_TOKEN - GitHub个人访问令牌');
+    console.error('\n您可以通过以下方式设置环境变量：');
+    console.error('  - 创建 .env.local 文件并添加变量');
+    console.error('  - 在命令行中临时设置：export GITHUB_ACCESS_TOKEN=your_token');
+    return 1;
+  }
+
+  console.log('环境变量检查通过，开始运行评估...\n');
+  console.log('注意：真实评估会调用实际的DeepSeek API和GitHub API，可能会产生API调用费用。\n');
+
+  try {
+    // 使用真实执行函数运行评估
+    const summary = await runEvaluation(realExecuteQuery);
+
+    // 生成评估报告
+    const report = generateEvaluationReport(summary);
+
+    console.log('\n' + report);
+
+    // 保存报告到文件
+    const fs = await import('fs');
+    const path = await import('path');
+    const reportPath = path.join(process.cwd(), 'agent-evaluation-report.md');
+    fs.writeFileSync(reportPath, report, 'utf-8');
+
+    console.log(`\n评估报告已保存到: ${reportPath}`);
+
+    // 输出简要结果
+    console.log('\n=== 评估结果摘要 ===');
+    console.log(`测试用例总数: ${summary.totalTests}`);
+    console.log(`通过测试数: ${summary.passedTests}`);
+    console.log(`通过率: ${((summary.passedTests / summary.totalTests) * 100).toFixed(1)}%`);
+    console.log(`平均匹配率: ${summary.averageMatchPercentage.toFixed(1)}%`);
+
+    // 检查是否通过
+    if (summary.passedTests >= summary.totalTests * 0.7) {
+      console.log('\n✅ Agent评估通过！');
+      return 0;
+    } else {
+      console.log('\n❌ Agent评估未通过，需要改进。');
+      return 1;
+    }
+  } catch (error) {
+    console.error('评估过程中发生错误:', error);
+    return 1;
+  }
 }
 
 // 主函数
@@ -194,7 +329,7 @@ async function main() {
 }
 
 // 如果直接运行此文件
-if (require.main === module) {
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
   main().then(exitCode => {
     process.exit(exitCode);
   }).catch(error => {
