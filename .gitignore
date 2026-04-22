@@ -45,3 +45,6 @@ yarn-error.log*
 
 # claude code
 .claude/
+
+# 评估报告
+agent-evaluation-report.md
