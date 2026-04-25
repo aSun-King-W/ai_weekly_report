@@ -160,8 +160,10 @@ export function cleanHyphenation(text: string, options: { useNonBreakingHyphen?:
 
   // 处理行尾连字符（后面可能有空格）
   result = result.replace(/(\S+)-\s*$/gm, '$1');
-  // 处理行首连字符
-  result = result.replace(/^\s*-(\S+)/gm, '$1');
+  // 处理行首连字符（仅PDF模式，网页显示跳过以免破坏Markdown列表）
+  if (useNonBreakingHyphen) {
+    result = result.replace(/^\s*-(\S+)/gm, '$1');
+  }
 
   // 第二步：保护合法的连字符使用
   // 保护日期格式：YYYY-MM-DD
@@ -209,9 +211,8 @@ export function cleanHyphenation(text: string, options: { useNonBreakingHyphen?:
     // 对于PDF生成：清理所有"空格-空格"模式
     result = result.replace(/\s+-\s+/g, ' ');
   } else {
-    // 对于网页显示：不清理行开头的" - "（Markdown列表）
-    // 使用更复杂的正则，避免匹配行开头的" - "
-    result = result.replace(/(?<=\S)\s+-\s+/g, ' ');
+    // 对于网页显示：只在同一行内清理，避免跨行匹配破坏Markdown结构
+    result = result.replace(/(?<=\S)[ \t]+-[ \t]+/g, ' ');
   }
 
   // 处理单词内部的错误连字符（如"AI-"、"ML-"等）
@@ -241,12 +242,34 @@ export function cleanHyphenation(text: string, options: { useNonBreakingHyphen?:
       useNonBreakingHyphen ? m.replacement.replace(/\u2011URL\u2011/g, '-') : m.original);
   });
 
-  // 第六步：清理可能因替换产生的多余空格，但保留换行符
-  // 只将多个连续空格和制表符替换为单个空格，保留换行符
+  // 第六步：清理可能因替换产生的多余空格，但保留换行符和代码块缩进
+  // 识别并保护代码块
+  const codeBlocks: string[] = [];
+  result = result.replace(/```[\s\S]*?```/g, (match) => {
+    codeBlocks.push(match);
+    return `\x00CODEBLOCK${codeBlocks.length - 1}\x00`;
+  });
+
+  // 保护行内代码
+  result = result.replace(/`[^`]+`/g, (match) => {
+    codeBlocks.push(match);
+    return `\x00CODEBLOCK${codeBlocks.length - 1}\x00`;
+  });
+
+  // 移除空的Markdown列表项（防止显示孤立的蓝色圆点）
+  result = result.replace(/^[-*+]\s+(\r?\n|$)/gm, '');
+  result = result.replace(/^\d+\.\s+(\r?\n|$)/gm, '');
+
+  // 只在非代码区域做空白清理
   result = result
     .replace(/[ \t]+/g, ' ')  // 匹配多个连续空格或制表符
     .replace(/^[ \t]+|[ \t]+$/gm, '')  // 清理每行开头和结尾的空格/制表符
     .trim();
+
+  // 恢复受保护的内容
+  result = result.replace(/\x00CODEBLOCK(\d+)\x00/g, (_, index) => {
+    return codeBlocks[parseInt(index)];
+  });
 
   return result;
 }
