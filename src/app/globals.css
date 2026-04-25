@@ -36,7 +36,6 @@ body {
   /* 确保中文换行 */
   word-break: break-word;
   overflow-wrap: break-word;
-  hyphens: auto;
 }
 
 /* 改善列表显示 */
