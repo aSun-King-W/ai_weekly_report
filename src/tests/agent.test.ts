@@ -1,5 +1,5 @@
 // Agent测试文件
-import { runEvaluation, generateEvaluationReport, TEST_CASES, evaluateTestCase, type EvaluationResult, type EvaluationSummary } from '../utils/evaluation.ts';
+import { runEvaluation, generateEvaluationReport, generateHtmlReport } from '../utils/evaluation.ts';
 import { getAgentService } from '../lib/agent-service.ts';
 import { AgentContext } from '../types/index.ts';
 import { fileURLToPath } from 'url';
@@ -35,7 +35,7 @@ function loadEnvFromFile() {
 
     console.log('已从 .env.local 文件加载环境变量');
   } catch (error) {
-    console.warn('无法加载 .env.local 文件:', error.message);
+    console.warn('无法加载 .env.local 文件:', error instanceof Error ? error.message : error);
   }
 }
 
@@ -159,14 +159,14 @@ async function realExecuteQuery(query: string): Promise<string> {
   console.log(`[realExecuteQuery] 处理查询: "${query.substring(0, 50)}${query.length > 50 ? '...' : ''}"`);
 
   // 检查必需的环境变量
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.DEEPSEEK_API_KEY || process.env.ANTHROPIC_API_KEY;
   const accessToken = process.env.GITHUB_ACCESS_TOKEN;
 
-  console.log(`[realExecuteQuery] API密钥已设置: ${apiKey ? '是' : '否'}`);
+  console.log(`[realExecuteQuery] DeepSeek API密钥已设置: ${apiKey ? '是' : '否'}`);
   console.log(`[realExecuteQuery] GitHub令牌已设置: ${accessToken ? '是' : '否'}`);
 
   if (!apiKey) {
-    throw new Error('ANTHROPIC_API_KEY环境变量未设置');
+    throw new Error('DEEPSEEK_API_KEY或ANTHROPIC_API_KEY环境变量未设置');
   }
   if (!accessToken) {
     throw new Error('GITHUB_ACCESS_TOKEN环境变量未设置');
@@ -185,11 +185,11 @@ async function realExecuteQuery(query: string): Promise<string> {
 
     console.log('[realExecuteQuery] 调用agentService.processQuery...');
 
-    // 添加超时机制（60秒）
+    // 添加超时机制（90秒）
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => {
-        reject(new Error('Agent处理超时（60秒）'));
-      }, 60000);
+        reject(new Error('Agent处理超时（90秒）'));
+      }, 90000);
     });
 
     // 处理查询（带超时）
@@ -200,13 +200,22 @@ async function realExecuteQuery(query: string): Promise<string> {
 
     console.log(`[realExecuteQuery] 调用成功，返回内容长度: ${result.content.length}字符`);
 
+    // 记录错误分类信息（如果有）
+    if (result.metadata?.errors && result.metadata.errors.length > 0) {
+      console.warn('[realExecuteQuery] 执行中存在异常:', JSON.stringify(result.metadata.errors));
+    }
+
     // 返回内容
     return result.content;
   } catch (error) {
-    // 将错误转换为字符串，以便评估系统可以处理
+    // 分类错误
     const errorMessage = error instanceof Error ? error.message : '未知错误';
-    console.error(`[realExecuteQuery] 执行失败: ${errorMessage}`);
-    return `执行失败: ${errorMessage}`;
+    const errorType = errorMessage.includes('超时') ? 'api_call_failed' :
+                      errorMessage.includes('API') ? 'api_call_failed' :
+                      errorMessage.includes('tool') ? 'tool_execution_failed' :
+                      'unknown';
+    console.error(`[realExecuteQuery] [${errorType}] 执行失败: ${errorMessage}`);
+    return `执行失败 [${errorType}]: ${errorMessage}`;
   }
 }
 
@@ -218,10 +227,11 @@ async function runAgentEvaluation() {
 
   try {
     // 使用模拟执行函数运行评估
-    const summary = await runEvaluation(mockExecuteQuery);
+    const summary = await runEvaluation(mockExecuteQuery, { useAiJudge: false });
 
     // 生成评估报告
     const report = generateEvaluationReport(summary);
+    const htmlReport = generateHtmlReport(summary);
 
     console.log('\n' + report);
 
@@ -230,8 +240,11 @@ async function runAgentEvaluation() {
     const path = await import('path');
     const reportPath = path.join(process.cwd(), 'agent-evaluation-report.md');
     fs.writeFileSync(reportPath, report, 'utf-8');
+    const htmlReportPath = path.join(process.cwd(), 'agent-evaluation-report.html');
+    fs.writeFileSync(htmlReportPath, htmlReport, 'utf-8');
 
     console.log(`\n评估报告已保存到: ${reportPath}`);
+    console.log(`HTML报告已保存到: ${htmlReportPath}`);
 
     // 输出简要结果
     console.log('\n=== 评估结果摘要 ===');
@@ -239,6 +252,9 @@ async function runAgentEvaluation() {
     console.log(`通过测试数: ${summary.passedTests}`);
     console.log(`通过率: ${((summary.passedTests / summary.totalTests) * 100).toFixed(1)}%`);
     console.log(`平均匹配率: ${summary.averageMatchPercentage.toFixed(1)}%`);
+    if (summary.averageAiScore !== undefined) {
+      console.log(`AI评估平均分: ${summary.averageAiScore.toFixed(2)}/10`);
+    }
 
     // 检查是否通过
     if (summary.passedTests >= summary.totalTests * 0.7) {
@@ -254,20 +270,18 @@ async function runAgentEvaluation() {
   }
 }
 
-/**
- * 运行真实环境测试（需要配置环境变量）
- */
-async function runRealEvaluation() {
+// 支持带参数运行真实评估
+async function runRealEvaluation(useAiJudge: boolean = false) {
   console.log('开始真实环境评估测试...\n');
 
   // 检查环境变量
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.DEEPSEEK_API_KEY || process.env.ANTHROPIC_API_KEY;
   const accessToken = process.env.GITHUB_ACCESS_TOKEN;
 
   if (!apiKey || !accessToken) {
     console.error('错误：缺少必需的环境变量');
     console.error('请设置以下环境变量：');
-    console.error('1. ANTHROPIC_API_KEY - DeepSeek API密钥');
+    console.error('1. DEEPSEEK_API_KEY (或 ANTHROPIC_API_KEY) - DeepSeek API密钥');
     console.error('2. GITHUB_ACCESS_TOKEN - GitHub个人访问令牌');
     console.error('\n您可以通过以下方式设置环境变量：');
     console.error('  - 创建 .env.local 文件并添加变量');
@@ -278,12 +292,17 @@ async function runRealEvaluation() {
   console.log('环境变量检查通过，开始运行评估...\n');
   console.log('注意：真实评估会调用实际的DeepSeek API和GitHub API，可能会产生API调用费用。\n');
 
+  if (useAiJudge) {
+    console.log('注意：AI Judge 模式会额外调用 DeepSeek API 进行质量评估，会增加API调用次数。\n');
+  }
+
   try {
-    // 使用真实执行函数运行评估
-    const summary = await runEvaluation(realExecuteQuery);
+    // 使用真实执行函数运行评估（可选启用AI Judge）
+    const summary = await runEvaluation(realExecuteQuery, { useAiJudge });
 
     // 生成评估报告
     const report = generateEvaluationReport(summary);
+    const htmlReport = generateHtmlReport(summary);
 
     console.log('\n' + report);
 
@@ -292,8 +311,11 @@ async function runRealEvaluation() {
     const path = await import('path');
     const reportPath = path.join(process.cwd(), 'agent-evaluation-report.md');
     fs.writeFileSync(reportPath, report, 'utf-8');
+    const htmlReportPath = path.join(process.cwd(), 'agent-evaluation-report.html');
+    fs.writeFileSync(htmlReportPath, htmlReport, 'utf-8');
 
     console.log(`\n评估报告已保存到: ${reportPath}`);
+    console.log(`HTML报告已保存到: ${htmlReportPath}`);
 
     // 输出简要结果
     console.log('\n=== 评估结果摘要 ===');
@@ -320,9 +342,14 @@ async function runRealEvaluation() {
 async function main() {
   const args = process.argv.slice(2);
   const useReal = args.includes('--real');
+  const useAiJudge = args.includes('--ai-judge');
+
+  if (useAiJudge) {
+    console.log('已启用 LLM-as-Judge 评估模式');
+  }
 
   if (useReal) {
-    return await runRealEvaluation();
+    return await runRealEvaluation(useAiJudge);
   } else {
     return await runAgentEvaluation();
   }

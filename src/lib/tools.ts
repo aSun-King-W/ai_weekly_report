@@ -137,7 +137,7 @@ export async function generateReport(
   }
 
   // 验证环境变量
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.DEEPSEEK_API_KEY && !process.env.ANTHROPIC_API_KEY) {
     throw new Error('DeepSeek API密钥未配置');
   }
 

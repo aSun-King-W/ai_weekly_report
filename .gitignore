@@ -48,3 +48,5 @@ yarn-error.log*
 
 # 评估报告
 agent-evaluation-report.md
+agent-evaluation-report.html
+eval-results/

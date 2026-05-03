@@ -1,7 +1,6 @@
 // AI服务模块 - 用于集成DeepSeek API生成周报
 import OpenAI from 'openai';
 import { GitHubCommit, ReportOptions, ReportResult } from '../types/index.ts';
-import { cleanHyphenation } from './utils.ts';
 
 export class AIService {
   private client: OpenAI;
@@ -11,6 +10,8 @@ export class AIService {
     this.client = new OpenAI({
       apiKey,
       baseURL: 'https://api.deepseek.com',
+      timeout: 30000,
+      maxRetries: 2,
     });
   }
 
@@ -223,7 +224,7 @@ Markdown格式注意事项（非常重要）：
     if (error instanceof OpenAI.APIError) {
       switch (error.status) {
         case 401:
-          return new Error('DeepSeek API密钥无效，请检查ANTHROPIC_API_KEY环境变量');
+          return new Error('DeepSeek API密钥无效，请检查DEEPSEEK_API_KEY或ANTHROPIC_API_KEY环境变量');
         case 429:
           return new Error('API调用频率限制，请稍后重试');
         case 500:
@@ -305,10 +306,10 @@ let aiServiceInstance: AIService | null = null;
  */
 export function getAIService(): AIService {
   if (!aiServiceInstance) {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
+    const apiKey = process.env.DEEPSEEK_API_KEY || process.env.ANTHROPIC_API_KEY;
 
     if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY环境变量未设置');
+      throw new Error('DEEPSEEK_API_KEY或ANTHROPIC_API_KEY环境变量未设置');
     }
 
     aiServiceInstance = new AIService(apiKey);

@@ -73,6 +73,7 @@ export interface AgentResult {
   metadata?: {
     executionTime: number;
     toolExecutionTimes?: Record<string, number>;
+    errors?: Array<{ type: string; detail: string }>;
   };
 }
 

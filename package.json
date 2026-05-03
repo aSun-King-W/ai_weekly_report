@@ -7,7 +7,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "jest",
+    "test:eval": "npx tsx src/tests/agent.test.ts",
+    "test:eval:ai": "npx tsx src/tests/agent.test.ts --ai-judge",
+    "test:eval:real": "npx tsx src/tests/agent.test.ts --real"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.4.1",
@@ -25,12 +29,15 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.3",
+    "jest": "^30.3.0",
     "tailwindcss": "^4",
+    "ts-jest": "^29.4.9",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5"
