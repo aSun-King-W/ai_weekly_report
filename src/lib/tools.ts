@@ -1,6 +1,7 @@
 // 工具定义和实现模块
 import { GitHubCommit, ReportOptions, ToolDefinition, ToolCall, ToolResult, AgentContext } from '../types/index.ts';
 import { getAIService } from './ai-service.ts';
+import { logger } from './logger.ts';
 
 // GitHub API响应类型
 interface GitHubApiCommit {
@@ -32,6 +33,7 @@ export async function getGitHubCommits(
 ): Promise<GitHubCommit[]> {
   const { owner, repo, since, until, page = 1, per_page = 30 } = params;
   const { accessToken } = context;
+  const startTime = Date.now();
 
   if (!accessToken) {
     throw new Error('未提供有效的GitHub访问令牌');
@@ -64,7 +66,13 @@ export async function getGitHubCommits(
 
   if (!response.ok) {
     const errorText = await response.text();
+    const duration = Date.now() - startTime;
     console.error('GitHub API错误:', response.status, errorText);
+
+    logger.error('github', 'get_commits', `GitHub API ${response.status}`, {
+      duration,
+      metadata: { owner, repo, status: response.status },
+    });
 
     // 处理空仓库的情况
     if (response.status === 409) {
@@ -96,6 +104,12 @@ export async function getGitHubCommits(
   }
 
   const commitsData: GitHubApiCommit[] = await response.json();
+  const duration = Date.now() - startTime;
+
+  logger.info('github', 'get_commits', {
+    duration,
+    metadata: { owner, repo, commitCount: commitsData.length, page, repoFull: `${owner}/${repo}` },
+  });
 
   // 格式化响应数据
   const formattedCommits: GitHubCommit[] = commitsData.map((commit) => ({
@@ -124,9 +138,10 @@ export async function generateReport(
     commits: GitHubCommit[];
     options: ReportOptions;
   },
-  context: AgentContext
+  _context: AgentContext
 ): Promise<string> {
   const { commits, options } = params;
+  void _context;
 
   if (!commits || !Array.isArray(commits) || commits.length === 0) {
     throw new Error('提交记录不能为空');
@@ -266,16 +281,9 @@ export async function executeToolCalls(
   const results: ToolResult[] = [];
 
   for (const toolCall of toolCalls) {
+    const toolStartTime = Date.now();
     try {
       const { name, arguments: argsStr } = toolCall.function;
-
-      // 调试：记录arguments内容
-      console.log(`[executeToolCalls] 工具: ${name}, arguments长度: ${argsStr?.length || 0}`);
-      if (argsStr && argsStr.length > 1000) {
-        console.log(`[executeToolCalls] arguments前1000字符: ${argsStr.substring(0, 1000)}`);
-      } else if (argsStr) {
-        console.log(`[executeToolCalls] arguments: ${argsStr}`);
-      }
 
       const args = JSON.parse(argsStr);
 
@@ -296,6 +304,13 @@ export async function executeToolCalls(
           throw new Error(`未知的工具: ${name}`);
       }
 
+      const toolDuration = Date.now() - toolStartTime;
+
+      logger.info('agent', `tool_${name}`, {
+        duration: toolDuration,
+        metadata: { tool: name, success: true },
+      });
+
       results.push({
         tool_call_id: toolCall.id,
         role: 'tool',
@@ -303,14 +318,20 @@ export async function executeToolCalls(
         content,
       });
     } catch (error) {
-      console.error(`执行工具 ${toolCall.function.name} 失败:`, error);
+      const toolDuration = Date.now() - toolStartTime;
+      const errorMessage = error instanceof Error ? error.message : '工具执行失败';
+
+      logger.error('agent', `tool_${toolCall.function.name}`, errorMessage, {
+        duration: toolDuration,
+        metadata: { tool: toolCall.function.name, success: false },
+      });
 
       results.push({
         tool_call_id: toolCall.id,
         role: 'tool',
         name: toolCall.function.name,
         content: JSON.stringify({
-          error: error instanceof Error ? error.message : '工具执行失败',
+          error: errorMessage,
           success: false,
         }),
       });

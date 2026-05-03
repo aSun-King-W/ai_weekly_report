@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ApiResponse, GitHubCommit } from '@/types';
 import { CACHE_TTL, PAGINATION } from '@/lib/constants';
+import { logger } from '@/lib/logger';
 
 // GitHub API响应类型
 interface GitHubApiCommit {
@@ -19,10 +20,15 @@ interface GitHubApiCommit {
 }
 
 export async function GET(request: NextRequest) {
+  const startTime = Date.now();
   try {
     const authHeader = request.headers.get('Authorization');
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      logger.warn('github', 'api_commits', {
+        duration: Date.now() - startTime,
+        metadata: { status: 401, reason: 'missing_auth' },
+      });
       return NextResponse.json<ApiResponse>({
         success: false,
         error: '未提供有效的认证令牌',
@@ -132,17 +138,28 @@ export async function GET(request: NextRequest) {
     const headers = new Headers();
     headers.set('Cache-Control', `public, max-age=${CACHE_TTL.GITHUB}, stale-while-revalidate=60`);
 
+    logger.info('github', 'api_commits', {
+      duration: Date.now() - startTime,
+      metadata: { owner, repo, commitCount: formattedCommits.length, status: 200 },
+    });
+
     return NextResponse.json<ApiResponse>({
       success: true,
       data: formattedCommits,
     }, { headers });
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : '未知错误';
     console.error('获取commit记录失败:', error);
+
+    logger.error('github', 'api_commits', errorMessage, {
+      duration: Date.now() - startTime,
+      metadata: { status: 500 },
+    });
 
     return NextResponse.json<ApiResponse>({
       success: false,
       error: '获取commit记录时发生错误',
-      message: error instanceof Error ? error.message : '未知错误',
+      message: errorMessage,
     }, { status: 500 });
   }
 }

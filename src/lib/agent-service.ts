@@ -2,6 +2,7 @@
 import OpenAI from 'openai';
 import { AgentContext, AgentResult } from '../types/index.ts';
 import { getToolsDefinition, executeToolCalls } from './tools.ts';
+import { logger } from './logger.ts';
 
 // 错误分类日志
 interface ErrorClassification {
@@ -172,7 +173,7 @@ export class AgentService {
           // 转换OpenAI工具调用到我们的格式
           const convertedToolCalls = toolCalls
             .filter((tc): tc is OpenAI.ChatCompletionMessageToolCall & { function: Record<string, unknown> } =>
-              tc.type === 'function' && typeof (tc as Record<string, unknown>).function === 'object'
+              tc.type === 'function' && typeof (tc as unknown as Record<string, unknown>).function === 'object'
             )
             .map(tc => ({
               id: tc.id,
@@ -223,6 +224,36 @@ export class AgentService {
         console.warn('[AgentService] 执行过程中出现异常:', JSON.stringify(errors, null, 2));
       }
 
+      // 结构化日志
+      const selectedTools = response.choices?.[0]?.message?.tool_calls
+        ?.filter(tc => tc.type === 'function')
+        ?.map(tc => tc.function.name) || [];
+
+      logger.info('agent', 'process_query', {
+        duration: executionTime,
+        metadata: {
+          toolCallCount,
+          selectedTools,
+          hasContent: !!content,
+          errorCount: errors.length,
+        },
+      });
+
+      // 记录每个工具的耗时
+      for (const [tool, time] of Object.entries(toolExecutionTimes)) {
+        logger.info('agent', `tool_${tool}`, {
+          duration: Math.round(time),
+          metadata: { tool },
+        });
+      }
+
+      // 记录每个错误
+      for (const err of errors) {
+        logger.error('agent', `error_${err.type}`, err.originalError, {
+          metadata: { stage: err.stage },
+        });
+      }
+
       // 如果content为空但执行过程中有错误，返回错误信息
       if (!content && errors.length > 0) {
         const errorDetail = errors.map(e => `[${e.type}] ${e.details}`).join('; ');
@@ -248,7 +279,13 @@ export class AgentService {
       };
     } catch (error) {
       const classification = classifyError(error, 'process_query');
+      const executionTime = Date.now() - startTime;
       console.error('[AgentService] 处理查询失败:', classification);
+
+      logger.error('agent', 'process_query', classification.originalError, {
+        duration: executionTime,
+        metadata: { stage: classification.stage, type: classification.type },
+      });
 
       // 处理不同类型的错误
       let errorMessage = '处理请求时发生错误';

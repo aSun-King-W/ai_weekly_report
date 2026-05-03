@@ -1,6 +1,7 @@
 // AI服务模块 - 用于集成DeepSeek API生成周报
 import OpenAI from 'openai';
 import { GitHubCommit, ReportOptions, ReportResult } from '../types/index.ts';
+import { logger } from './logger.ts';
 
 export class AIService {
   private client: OpenAI;
@@ -20,6 +21,9 @@ export class AIService {
    */
   async generateReport(commits: GitHubCommit[], options: ReportOptions): Promise<ReportResult> {
     const startTime = Date.now();
+    const repoInfo = commits.length > 0
+      ? `${commits[0].repository.owner}/${commits[0].repository.name}`
+      : 'unknown';
 
     try {
       // 构建提示词
@@ -53,8 +57,30 @@ export class AIService {
 
       // 如果没有生成内容，使用备用方案
       if (!cleanedContent.trim()) {
+        logger.warn('ai-service', 'generate_report', {
+          duration: generationTime,
+          metadata: { repo: repoInfo, commitCount: commits.length, reason: 'empty_content' },
+        });
         return this.generateFallbackReport(commits, options, generationTime);
       }
+
+      const isFallback = false;
+
+      logger.info('ai-service', 'generate_report', {
+        duration: generationTime,
+        tokenUsage: response.usage ? {
+          prompt: response.usage.prompt_tokens,
+          completion: response.usage.completion_tokens,
+          total: response.usage.total_tokens,
+        } : undefined,
+        metadata: {
+          repo: repoInfo,
+          commitCount: commits.length,
+          style: options.style,
+          length: options.length,
+          isFallback,
+        },
+      });
 
       return {
         report: cleanedContent,
@@ -67,7 +93,14 @@ export class AIService {
         },
       };
     } catch (error) {
-      console.error('DeepSeek API调用失败:', error);
+      const duration = Date.now() - startTime;
+      const errorMessage = error instanceof Error ? error.message : '未知错误';
+
+      logger.error('ai-service', 'generate_report', errorMessage, {
+        duration,
+        metadata: { repo: repoInfo, commitCount: commits.length },
+      });
+
       throw this.handleApiError(error);
     }
   }
