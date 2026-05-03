@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
 
     // 解析请求体
     const body = await request.json();
-    const { query, options, download }: { query: string; options?: any; download?: boolean } = body;
+    const { query, download }: { query: string; download?: boolean } = body;
 
     if (!query || typeof query !== 'string') {
       return NextResponse.json<ApiResponse>({

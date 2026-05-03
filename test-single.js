@@ -1,10 +1,6 @@
 // 简单测试脚本，测试单个查询
-import { fileURLToPath } from 'url';
 import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { join } from 'path';
 
 // 加载.env.local文件中的环境变量
 function loadEnvFromFile() {
@@ -46,7 +42,7 @@ loadEnvFromFile();
 async function testSingleQuery() {
   try {
     // 动态导入agent.test.ts中的函数
-    const { mockExecuteQuery } = await import('./src/tests/agent.test.ts');
+    await import('./src/tests/agent.test.ts');
 
     console.log('测试模拟查询...');
     const query = '为仓库 facebook/react 生成周报';
