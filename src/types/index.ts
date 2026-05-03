@@ -74,6 +74,8 @@ export interface AgentResult {
     executionTime: number;
     toolExecutionTimes?: Record<string, number>;
     errors?: Array<{ type: string; detail: string }>;
+    bypass?: boolean;
+    commitCount?: number;
   };
 }
 

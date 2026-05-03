@@ -1,7 +1,8 @@
 // Agent核心服务，处理function calling和工具协调
 import OpenAI from 'openai';
-import { AgentContext, AgentResult } from '../types/index.ts';
+import { AgentContext, AgentResult, GitHubCommit, ReportOptions } from '../types/index.ts';
 import { getToolsDefinition, executeToolCalls } from './tools.ts';
+import { getAIService } from './ai-service.ts';
 import { logger } from './logger.ts';
 
 // 错误分类日志
@@ -66,34 +67,54 @@ function classifyError(error: unknown, stage: string): ErrorClassification {
 }
 
 // 系统提示词
-const SYSTEM_PROMPT = `你是一个AI周报生成助手，专门帮助用户获取GitHub提交记录并生成周报。
+const SYSTEM_PROMPT = `你是一个AI周报生成助手，专门帮助用户获取GitHub提交记录并生成专业周报。
 
-你可以使用以下工具：
-1. get_github_commits - 获取指定GitHub仓库的提交记录
-2. generate_report - 基于提交记录生成周报
+## 核心工作流程（必须严格遵守）
 
-工作流程：
-1. 用户请求生成周报时，首先使用get_github_commits工具获取提交记录
-2. 然后使用generate_report工具基于获取的提交记录生成周报
-3. 如果用户直接提供了提交记录，可以直接使用generate_report工具
+当用户请求生成周报/报告时，你的思考步骤（CoT）：
+1. 识别用户查询中的关键信息：仓库名(owner/repo)、时间范围、风格偏好、长度要求
+2. 调用 get_github_commits 获取原始提交数据
+3. 将获取到的 commits 数据传递给 generate_report 生成最终周报
+4. 输出 generate_report 返回的内容（原样输出，不加任何额外文字）
 
-重要规则：
+## 工具调用规则
+
+### 第一步：get_github_commits
+- 必须从查询中解析出 owner 和 repo（例如 "facebook/react" → owner="facebook", repo="react"）
+- 如果用户指定了时间范围（如"最近7天"、"从2024-01-01到2024-01-07"），转换为 ISO 格式传入 since/until
+- 如果用户没有指定时间范围，默认获取最近7天的记录（不传 since/until 参数）
+- 如果仓库名较长（如 "facebook/react-native-community/react-native-app-auth"），只取前两部分作为 owner/repo
+
+### 第二步：generate_report
+- 将 get_github_commits 返回的 commits 数组原样传入
+- 根据用户查询推断 options：
+  - style: 用户提到"技术"/"technical"→technical；"专业"/"正式"→professional；"轻松"/"友好"→casual；未指定→professional
+  - length: 用户提到"简洁"/"简单"/"concise"→concise；"详细"/"detailed"→detailed；"完整"/"详尽"→comprehensive；未指定→detailed
+  - includeMetrics: 用户提到"统计"/"指标"/"metrics"→true；除非明确说不需要，否则默认为true
+
+## 输出规则
+- 在调用 generate_report 后，**直接原样输出工具返回的内容**，不要添加任何自己的总结、解释、问候语或额外文字
+- 工具返回的内容已经是完整的、格式化好的周报（Markdown格式）
+- 如果 get_github_commits 返回空数组（空仓库），仍然调用 generate_report 并传入空数组，让工具处理
+- 如果 get_github_commits 返回错误信息，将该错误信息直接告知用户，不再继续调用 generate_report
+
+## 语言规则
 - 始终使用中文与用户交流
-- 如果用户没有指定时间范围，默认获取最近7天的提交记录
-- 如果用户没有指定报告选项，使用默认选项：风格为professional，长度为detailed，包含统计指标
-- 如果用户只提供了仓库信息，你需要主动询问是否需要指定时间范围或报告选项
-- 如果工具执行失败，向用户解释错误原因并提供解决方案
-- 当用户请求生成周报时，你必须依次调用两个工具：先get_github_commits，然后generate_report
-- 在调用generate_report工具时，必须将get_github_commits工具返回的提交记录作为commits参数传递
-- 不要在没有调用generate_report工具的情况下直接生成周报文本
-- 在调用generate_report工具后，直接输出工具返回的完整周报内容（Markdown格式），不要添加任何自己的总结、解释或额外文字
-- 工具返回的内容已经是完整的、格式化的周报，你只需要原样输出即可
-- 如果用户需要下载文件，他们可以通过API参数实现，你不需要在响应中提及下载功能
+- 工具返回的周报内容是中文，保持原样输出
 
-请根据用户请求，智能地决定需要调用哪些工具以及调用顺序。`;
+## 关键约束
+- 禁止：在未调用 generate_report 工具的情况下直接生成周报文本
+- 禁止：在 generate_report 返回内容前后添加额外说明
+- 禁止：猜测或虚构提交数据——必须通过 get_github_commits 获取
+- 禁止：询问用户是否要下载——这是API自动处理的
+
+## 边缘情况处理
+- 如果用户只给了仓库名没说明意图，默认执行生成周报流程
+- 如果 get_github_commits 执行失败（仓库不存在/无权限），将错误信息告知用户，停止后续流程
+- 如果用户请求英文，仍按上述流程执行，工具调用参数不变`;
 
 const MAX_TOOL_CALLS = 10;
-const API_TIMEOUT_MS = 30000;
+const API_TIMEOUT_MS = 60000;
 
 export class AgentService {
   private client: OpenAI;
@@ -106,6 +127,38 @@ export class AgentService {
       timeout: API_TIMEOUT_MS,
       maxRetries: 2,
     });
+  }
+
+  /**
+   * 从自然语言查询中推断报告选项
+   */
+  static inferReportOptions(query: string): ReportOptions {
+    const q = query.toLowerCase();
+
+    // 推断风格
+    let style: ReportOptions['style'] = 'professional';
+    if (q.includes('技术') || q.includes('technical') || q.includes('tech')) {
+      style = 'technical';
+    } else if (q.includes('轻松') || q.includes('友好') || q.includes('casual') || q.includes('随意')) {
+      style = 'casual';
+    } else if (q.includes('专业') || q.includes('正式') || q.includes('professional')) {
+      style = 'professional';
+    }
+
+    // 推断长度
+    let length: ReportOptions['length'] = 'detailed';
+    if (q.includes('简洁') || q.includes('简单') || q.includes('concise') || q.includes('brief') || q.includes('精简')) {
+      length = 'concise';
+    } else if (q.includes('详细') || q.includes('detailed') || q.includes('详尽')) {
+      length = 'detailed';
+    } else if (q.includes('完整') || q.includes('comprehensive') || q.includes('全面')) {
+      length = 'comprehensive';
+    }
+
+    // 推断是否包含指标
+    const includeMetrics = !(q.includes('不需要指标') || q.includes('不要统计') || q.includes('no metrics'));
+
+    return { style, length, includeMetrics };
   }
 
   /**
@@ -130,12 +183,16 @@ export class AgentService {
         messages,
         tools,
         tool_choice: 'auto',
-        max_tokens: 4000,
+        max_tokens: 1000,
         temperature: 0.7,
       });
 
       let toolCallCount = 0;
       let shouldContinue = true;
+
+      // 架构绕过状态：捕获真实提交数据，拦截 generate_report
+      let realCommits: GitHubCommit[] | null = null;
+      let extractedOptions: ReportOptions | null = null;
 
       // 循环处理工具调用，直到AI返回最终文本响应
       while (shouldContinue) {
@@ -194,19 +251,93 @@ export class AgentService {
             break;
           }
 
-          const toolResults = await executeToolCalls(convertedToolCalls, context);
+          // ---- 架构绕过：拦截 generate_report，捕获真实 commits ----
+          // 按工具类型分组
+          const githubCalls = convertedToolCalls.filter(tc => tc.function.name === 'get_github_commits');
+          const reportGenCalls = convertedToolCalls.filter(tc => tc.function.name === 'generate_report');
+          const otherCalls = convertedToolCalls.filter(tc =>
+            tc.function.name !== 'get_github_commits' && tc.function.name !== 'generate_report'
+          );
+
+          // 1) 执行 get_github_commits，捕获真实提交数据
+          if (githubCalls.length > 0) {
+            const results = await executeToolCalls(githubCalls, context);
+            for (const result of results) {
+              if (typeof result.content === 'string') {
+                try {
+                  const parsed = JSON.parse(result.content);
+                  if (Array.isArray(parsed) && parsed.length > 0) {
+                    realCommits = parsed;
+                  }
+                } catch {
+                  // 非 JSON → 错误消息，realCommits 保持 null
+                }
+              }
+            }
+            messages.push(...results);
+          }
+
+          // 2) 拦截 generate_report：只提取 options，不执行
+          if (reportGenCalls.length > 0) {
+            for (const call of reportGenCalls) {
+              try {
+                const args = JSON.parse(call.function.arguments);
+                if (args.options) {
+                  extractedOptions = args.options;
+                }
+              } catch {
+                // JSON 解析失败，忽略此调用
+              }
+              // 添加占位结果以保持消息历史一致性
+              messages.push({
+                tool_call_id: call.id,
+                role: 'tool' as const,
+                name: 'generate_report',
+                content: '[系统正在使用已验证的真实提交数据生成报告...]',
+              });
+            }
+          }
+
+          // 3) 执行其他工具调用
+          if (otherCalls.length > 0) {
+            const otherResults = await executeToolCalls(otherCalls, context);
+            messages.push(...otherResults);
+          }
+
           toolExecutionTimes['tool_execution'] = (toolExecutionTimes['tool_execution'] || 0) + (Date.now() - toolStartTime);
 
-          // 将工具结果添加到消息历史
-          messages.push(...toolResults);
+          // 4) 绕过判定：有真实提交数据 → 直接程序化生成报告
+          if (realCommits && realCommits.length > 0) {
+            const options = extractedOptions || AgentService.inferReportOptions(query);
+            const aiService = getAIService();
+            const reportResult = await aiService.generateReport(realCommits, options);
 
-          // 获取下一个响应
+            logger.info('agent', 'bypass_triggered', {
+              metadata: {
+                commitCount: realCommits.length,
+                optionsSource: extractedOptions ? 'model_extracted' : 'inferred',
+              },
+            });
+
+            return {
+              content: reportResult.report,
+              toolCalls: toolCallCount,
+              metadata: {
+                executionTime: Date.now() - startTime,
+                toolExecutionTimes,
+                bypass: true,
+                commitCount: realCommits.length,
+              },
+            };
+          }
+
+          // 获取下一个响应（无绕过时继续正常循环）
           response = await this.client.chat.completions.create({
             model: 'deepseek-chat',
             messages,
             tools,
             tool_choice: 'auto',
-            max_tokens: 8000,
+            max_tokens: 4000,
             temperature: 0.7,
           });
         } else {
@@ -266,6 +397,17 @@ export class AgentService {
             errors: errors.map(e => ({ type: e.type, detail: e.details || e.originalError })),
           },
         };
+      }
+
+      // 检测退化响应：AI没调用任何工具就直接输出短文本（可能是模型理解偏差）
+      if (toolCallCount === 0 && content.length < 100 && (query.includes('repo') || query.includes('周报') || query.includes('报告'))) {
+        logger.warn('agent', 'degenerate_response_detected', {
+          metadata: {
+            query: query.substring(0, 60),
+            contentLength: content.length,
+            content: content.substring(0, 100),
+          },
+        });
       }
 
       return {

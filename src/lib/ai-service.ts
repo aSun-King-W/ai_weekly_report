@@ -11,7 +11,7 @@ export class AIService {
     this.client = new OpenAI({
       apiKey,
       baseURL: 'https://api.deepseek.com',
-      timeout: 30000,
+      timeout: 60000,
       maxRetries: 2,
     });
   }
@@ -139,7 +139,12 @@ export class AIService {
 - 确保文本的自然换行，不要人为添加连字符
 
 重要原则：
-- 基于实际的提交记录内容生成报告，不要虚构或添加无关内容
+- 必须严格基于提交记录中的实际内容生成报告。每一条结论、分类、描述都必须在提交记录中有明确依据
+- 提交记录前的 SHA 标识符（如 \`a1b2c3d\`）可点击验证，禁止虚构 SHA 或将其关联到不存在的提交
+- 禁止：添加提交记录中不存在的功能、修复、或变更描述
+- 禁止：将通用模板内容当作实际工作内容输出
+- 禁止：夸大提交数量或工作范围
+- 如果提交记录较少（<5个），逐条详细描述每个提交的工作内容，不要归纳不存在的类别
 - 分析提交记录中的工作类型（功能开发、问题修复、重构、文档等）
 - 识别重要的技术成就和业务价值
 - 如果提交记录较少，可以适当详细描述每个提交的工作
@@ -194,7 +199,7 @@ Markdown格式注意事项（非常重要）：
           hour: '2-digit',
           minute: '2-digit'
         });
-        commitText += `${index + 1}. [${time}] ${commit.message} (${commit.author.name})\n`;
+        commitText += `${index + 1}. [${time}] \`${commit.sha.substring(0, 7)}\` ${commit.message} (${commit.author.name})\n`;
       });
     });
 
