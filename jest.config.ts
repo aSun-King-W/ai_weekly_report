@@ -23,8 +23,8 @@ const config: Config = {
   },
   // Agent 评估测试是长运行测试，设置更长的超时
   testTimeout: 120000,
-  // 忽略 E2E 测试
-  testPathIgnorePatterns: ['/node_modules/', '/e2e/'],
+  // 忽略 E2E 测试和独立的 Agent 评估脚本
+  testPathIgnorePatterns: ['/node_modules/', '/e2e/', 'src/tests/agent.test.ts'],
   // 输出详细测试结果
   verbose: true,
 };

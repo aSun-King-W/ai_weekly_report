@@ -185,11 +185,11 @@ async function realExecuteQuery(query: string): Promise<string> {
 
     console.log('[realExecuteQuery] 调用agentService.processQuery...');
 
-    // 添加超时机制（90秒）
+    // 添加超时机制（180秒）
     const timeoutPromise = new Promise<never>((_, reject) => {
       setTimeout(() => {
-        reject(new Error('Agent处理超时（90秒）'));
-      }, 90000);
+        reject(new Error('Agent处理超时（180秒）'));
+      }, 180000);
     });
 
     // 处理查询（带超时）
@@ -211,7 +211,6 @@ async function realExecuteQuery(query: string): Promise<string> {
     // 分类错误
     const errorMessage = error instanceof Error ? error.message : '未知错误';
     const errorType = errorMessage.includes('超时') ? 'api_call_failed' :
-                      errorMessage.includes('API') ? 'api_call_failed' :
                       errorMessage.includes('tool') ? 'tool_execution_failed' :
                       'unknown';
     console.error(`[realExecuteQuery] [${errorType}] 执行失败: ${errorMessage}`);

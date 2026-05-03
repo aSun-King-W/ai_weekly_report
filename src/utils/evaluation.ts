@@ -1,7 +1,10 @@
 // Agent评估工具，执行结构化检查
 // 支持关键词匹配 + LLM-as-Judge 混合评估
+// 支持基线保存和迭代对比
 
 import { evaluateWithHybrid, type JudgeResult } from './ai-judge.ts';
+import fs from 'fs';
+import path from 'path';
 
 export interface TestCase {
   id: number;
@@ -549,4 +552,261 @@ function escapeHtml(text: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+// ── Layer 3: Baseline Recording & Iteration Tracking ──
+
+const EVAL_RESULTS_DIR = path.join(process.cwd(), 'eval-results');
+
+export interface BaselineRecord {
+  iteration: number;
+  timestamp: string;
+  summary: Omit<EvaluationSummary, 'results'> & {
+    failureAnalysis?: FailureAnalysis;
+    changelog?: string;
+  };
+  results: EvaluationResult[];
+}
+
+export interface FailureAnalysis {
+  toolSelectionErrors: number;
+  outputStructureIssues: number;
+  contentDeviationIssues: number;
+  apiCallFailures: number;
+  topFailures: Array<{
+    testId: number;
+    name: string;
+    primaryCause: string;
+    suggestion: string;
+  }>;
+}
+
+/**
+ * 保存评估结果作为基线记录
+ */
+export function saveBaseline(
+  summary: EvaluationSummary,
+  options?: {
+    iteration?: number;
+    changelog?: string;
+    failureAnalysis?: FailureAnalysis;
+  }
+): string {
+  const { iteration, changelog, failureAnalysis } = options || {};
+  const timestamp = new Date().toISOString();
+  const iter = iteration || getNextIterationNumber();
+
+  const record: BaselineRecord = {
+    iteration: iter,
+    timestamp,
+    summary: {
+      totalTests: summary.totalTests,
+      passedTests: summary.passedTests,
+      averageMatchPercentage: summary.averageMatchPercentage,
+      averageAiScore: summary.averageAiScore,
+      timestamp,
+      failureAnalysis,
+      changelog,
+    },
+    results: summary.results,
+  };
+
+  // 确保目录存在
+  if (!fs.existsSync(EVAL_RESULTS_DIR)) {
+    fs.mkdirSync(EVAL_RESULTS_DIR, { recursive: true });
+  }
+
+  // 保存 JSON 记录
+  const filename = `iter-${String(iter).padStart(2, '0')}-${timestamp.slice(0, 10)}.json`;
+  const filepath = path.join(EVAL_RESULTS_DIR, filename);
+  fs.writeFileSync(filepath, JSON.stringify(record, null, 2), 'utf-8');
+
+  // 同时保存 Markdown 格式报告
+  const mdFilename = `iter-${String(iter).padStart(2, '0')}-${timestamp.slice(0, 10)}.md`;
+  const mdFilepath = path.join(EVAL_RESULTS_DIR, mdFilename);
+  fs.writeFileSync(mdFilepath, generateEvaluationReport(summary), 'utf-8');
+
+  console.log(`\n[Baseline] 迭代 #${iter} 已保存到 ${filename}`);
+  return filename;
+}
+
+/**
+ * 获取下一个迭代编号
+ */
+export function getNextIterationNumber(): number {
+  try {
+    if (!fs.existsSync(EVAL_RESULTS_DIR)) return 1;
+
+    const files = fs.readdirSync(EVAL_RESULTS_DIR)
+      .filter(f => f.startsWith('iter-') && f.endsWith('.json'));
+
+    if (files.length === 0) return 1;
+
+    const maxIter = Math.max(
+      ...files.map(f => {
+        const match = f.match(/iter-(\d+)/);
+        return match ? parseInt(match[1], 10) : 0;
+      })
+    );
+
+    return maxIter + 1;
+  } catch {
+    return 1;
+  }
+}
+
+/**
+ * 获取所有基线记录（按迭代编号排序）
+ */
+export function getBaselineHistory(): BaselineRecord[] {
+  try {
+    if (!fs.existsSync(EVAL_RESULTS_DIR)) return [];
+
+    const files = fs.readdirSync(EVAL_RESULTS_DIR)
+      .filter(f => f.startsWith('iter-') && f.endsWith('.json'))
+      .sort();
+
+    const records: BaselineRecord[] = [];
+    for (const file of files) {
+      try {
+        const content = fs.readFileSync(path.join(EVAL_RESULTS_DIR, file), 'utf-8');
+        records.push(JSON.parse(content));
+      } catch {
+        console.warn(`无法读取基线文件: ${file}`);
+      }
+    }
+
+    return records;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 分析失败模式
+ */
+export function analyzeFailures(summary: EvaluationSummary): FailureAnalysis {
+  const analysis: FailureAnalysis = {
+    toolSelectionErrors: 0,
+    outputStructureIssues: 0,
+    contentDeviationIssues: 0,
+    apiCallFailures: 0,
+    topFailures: [],
+  };
+
+  for (const result of summary.results) {
+    if (result.passed) continue;
+
+    const output = result.actualOutput;
+    let primaryCause = '';
+    let suggestion = '';
+
+    // 判断是否为 API 调用失败
+    if (output.includes('执行失败') || output.includes('API') || output.includes('认证')) {
+      analysis.apiCallFailures++;
+      primaryCause = 'API调用失败';
+      suggestion = '检查API密钥和网络连接';
+    }
+    // 判断是否为结构问题
+    else if (!result.details.hasTitle || !result.details.hasOverview) {
+      analysis.outputStructureIssues++;
+      primaryCause = '输出结构混乱';
+      suggestion = '增强system prompt的格式约束，添加明确的格式示例';
+    }
+    // 判断是否为内容偏离
+    else if (result.matchPercentage < 30) {
+      analysis.contentDeviationIssues++;
+      primaryCause = '内容偏离query';
+      suggestion = '检查tool调用逻辑和上下文组装，确保AI正确理解查询意图';
+    }
+    // 工具选择错误
+    else {
+      analysis.toolSelectionErrors++;
+      primaryCause = 'tool选择错误';
+      suggestion = '优化tool描述的准确性和 specificity';
+    }
+
+    analysis.topFailures.push({
+      testId: result.testCase.id,
+      name: result.testCase.name,
+      primaryCause,
+      suggestion,
+    });
+  }
+
+  // 按严重程度排序：关键词匹配率越低越严重
+  analysis.topFailures.sort((a, b) => {
+    const aResult = summary.results.find(r => r.testCase.id === a.testId);
+    const bResult = summary.results.find(r => r.testCase.id === b.testId);
+    return (aResult?.matchPercentage || 0) - (bResult?.matchPercentage || 0);
+  });
+
+  return analysis;
+}
+
+/**
+ * 生成迭代对比报告
+ */
+export function generateIterationReport(
+  current: EvaluationSummary,
+  previous?: BaselineRecord
+): string {
+  const passRate = current.passedTests / current.totalTests * 100;
+  let report = `# 迭代优化报告\n\n`;
+  report += `- **生成时间**: ${current.timestamp || new Date().toISOString()}\n`;
+  report += `- **当前通过率**: ${current.passedTests}/${current.totalTests} (${passRate.toFixed(1)}%)\n`;
+
+  if (previous) {
+    const prevPassRate = previous.summary.passedTests / previous.summary.totalTests * 100;
+    const diff = passRate - prevPassRate;
+    const diffSymbol = diff >= 0 ? '+' : '';
+    report += `- **前次通过率**: ${previous.summary.passedTests}/${previous.summary.totalTests} (${prevPassRate.toFixed(1)}%)\n`;
+    report += `- **变化**: ${diffSymbol}${diff.toFixed(1)}%\n`;
+
+    if (previous.summary.changelog) {
+      report += `- **本次变更**: ${previous.summary.changelog}\n`;
+    }
+  }
+
+  report += '\n';
+
+  // 失败分析
+  const failureAnalysis = analyzeFailures(current);
+  const totalFailures = current.totalTests - current.passedTests;
+  if (totalFailures > 0) {
+    report += `## 失败模式分析\n\n`;
+    report += `| 失败类型 | 数量 |\n`;
+    report += `|---------|------|\n`;
+    report += `| tool选择错误 | ${failureAnalysis.toolSelectionErrors} |\n`;
+    report += `| 输出结构混乱 | ${failureAnalysis.outputStructureIssues} |\n`;
+    report += `| 内容偏离query | ${failureAnalysis.contentDeviationIssues} |\n`;
+    report += `| API调用失败 | ${failureAnalysis.apiCallFailures} |\n`;
+    report += '\n';
+
+    report += `### 主要失败用例\n\n`;
+    for (const f of failureAnalysis.topFailures.slice(0, 5)) {
+      report += `- **#${f.testId} ${f.name}**: ${f.primaryCause}\n`;
+      report += `  - 建议: ${f.suggestion}\n`;
+    }
+    report += '\n';
+  }
+
+  report += `## 优化建议\n\n`;
+  if (failureAnalysis.toolSelectionErrors > 0) {
+    report += `1. **优化Tool描述**: 当前有 ${failureAnalysis.toolSelectionErrors} 个失败可能涉及tool选择，检查[tools.ts](src/lib/tools.ts)中的 \`description\` 是否足够精确\n`;
+  }
+  if (failureAnalysis.outputStructureIssues > 0) {
+    report += `2. **增强System Prompt**: 当前有 ${failureAnalysis.outputStructureIssues} 个输出结构问题，在[agent-service.ts](src/lib/agent-service.ts)中添加明确的格式示例和约束\n`;
+  }
+  if (failureAnalysis.contentDeviationIssues > 0) {
+    report += `3. **优化上下文组装**: 当前有 ${failureAnalysis.contentDeviationIssues} 个内容偏离问题，在[agent-service.ts](src/lib/agent-service.ts)中改进上下文传递逻辑\n`;
+  }
+  if (failureAnalysis.apiCallFailures > 0) {
+    report += `4. **增强错误处理**: 当前有 ${failureAnalysis.apiCallFailures} 个API调用失败，检查环境变量配置和错误降级逻辑\n`;
+  }
+
+  report += `\n---\n`;
+  report += `\n*报告由 Layer 3 Iteration Tracker 自动生成于 ${current.timestamp || new Date().toISOString()}*\n`;
+
+  return report;
 }
