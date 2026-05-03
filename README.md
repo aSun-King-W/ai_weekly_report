@@ -212,11 +212,17 @@ npm run start
 # 运行代码检查
 npm run lint
 
+# 运行单元测试和集成测试
+npm test
+
 # 运行Agent模拟评估
-node src/tests/agent.test.ts
+npm run test:eval
 
 # 运行Agent真实评估（需要环境变量）
-node src/tests/agent.test.ts --real
+npm run test:eval:real
+
+# 运行AI Judge评估（需要环境变量）
+npm run test:eval:ai
 
 # 清理构建缓存
 rm -rf .next
